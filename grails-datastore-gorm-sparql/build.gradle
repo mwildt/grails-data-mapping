@@ -1,0 +1,57 @@
+sourceSets.main.java.srcDirs = []
+sourceSets.main.groovy.srcDirs += ["src/main/java"]
+
+repositories {
+    //mavenLocal()
+    //mavenCentral()
+
+    // some artifacts used are not available on mavenCentral
+    maven { url "http://m2.neo4j.org/content/repositories/releases/" }
+//    maven { url "http://m2.neo4j.org/content/repositories/snapshots/" }
+//    maven { url "https://repo.grails.org/grails/core" }
+    maven { url 'http://maven.restlet.com'}
+}
+
+dependencies {
+
+    compile 'org.openrdf.sesame:sesame-runtime:4.1.1'
+
+    // during development (aka snapshot version), use project dependencies
+    // during release, use 'regular' dependencies
+    compile project(":grails-datastore-gorm"),
+            project(":grails-datastore-web")
+
+    compile(project(":grails-datastore-gorm-support")) {
+        exclude group:'org.grails', module:'grails-datastore-gorm-hibernate-core'
+    }
+
+    testCompile project(":grails-datastore-gorm-test"),
+            project(":grails-datastore-gorm-tck")
+
+
+    testRuntime "org.grails:grails-web:$grailsVersion", {
+        transitive = false
+    }
+    testRuntime("org.grails:grails-plugin-domain-class:$grailsVersion") {
+        exclude group: 'org.grails', module:'grails-plugin-testing'
+        exclude group: 'org.grails', module:'grails-datastore-core'
+        exclude group: 'org.grails', module:'grails-datastore-gorm'
+        exclude group: 'org.grails', module:'grails-datastore-simple'
+    }
+}
+
+test {
+    if (isTravisBuild) {
+        maxParallelForks = 1
+    }
+    else {
+        maxParallelForks = 2
+    }
+    forkEvery = 10
+    jvmArgs = ['-server', '-Xmx1028M', '-XX:MaxPermSize=256m']
+    afterSuite {
+        System.out.print('.')
+        System.out.flush()
+    }
+}
+

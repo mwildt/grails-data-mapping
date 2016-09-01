@@ -33,6 +33,7 @@ import java.util.List;
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
 public abstract class AbstractPersistentCollection implements PersistentCollection, Serializable {
+
     protected final transient Session session;
     protected final transient AssociationQueryExecutor indexer;
     protected final transient Class childType;

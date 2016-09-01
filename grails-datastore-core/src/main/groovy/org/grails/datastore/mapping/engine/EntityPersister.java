@@ -130,7 +130,6 @@ public abstract class EntityPersister implements Persister {
                         "] is not an instance supported by the persister for class [" +
                         getType().getName() + "]");
             }
-
             return persister.persist(obj);
         }
 
