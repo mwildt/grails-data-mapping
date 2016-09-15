@@ -2,7 +2,7 @@ package org.grails.datastore.gorm.sparql.query
 
 import org.grails.datastore.gorm.sparql.engine.SparqlEntityPersister
 import org.grails.datastore.gorm.sparql.engine.SparqlNativePersistentEntity
-import org.grails.datastore.gorm.sparql.mapping.config.SparqlMappingEntity
+import org.grails.datastore.gorm.sparql.mapping.config.RDFEntity
 import org.grails.datastore.mapping.core.Session
 import org.grails.datastore.mapping.model.PersistentEntity
 import org.grails.datastore.mapping.model.PersistentProperty
@@ -118,7 +118,7 @@ class SparqlQuery extends Query implements QueryArgumentsAware {
     @Override
     protected List executeQuery(PersistentEntity entity, Query.Junction criteria) {
 
-        SparqlMappingEntity mappedForm = persister
+        RDFEntity mappedForm = persister
                 .getMappingContext().getMappingFactory().createMappedForm(entity);
 
         QueryTree.QueryTreeNode treeRoot = new QueryTree.QueryTreeRootNode(

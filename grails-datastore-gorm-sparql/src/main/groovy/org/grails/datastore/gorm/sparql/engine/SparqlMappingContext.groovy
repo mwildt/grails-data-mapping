@@ -31,7 +31,7 @@ class SparqlMappingContext extends AbstractMappingContext {
             XMLGregorianCalendar.class
     ) ) );
 
-    MappingFactory<Entity, Property> mappingFactory
+    SparqlMappingFactory mappingFactory
     MappingConfigurationStrategy syntaxStrategy
 
     SparqlMappingContext() {

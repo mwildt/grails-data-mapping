@@ -10,8 +10,10 @@ import grails.gorm.tests.*
  */
 @RunWith(Suite)
 @Suite.SuiteClasses([
-//      CrudOperationsSpec,
-      OneToManySpec
+      CrudOperationsSpec,
+      OneToManySpec,
+      OneToOneSpec,
+      OptimisticLockingSpec
 ])
 class SparqlSuite {}
 

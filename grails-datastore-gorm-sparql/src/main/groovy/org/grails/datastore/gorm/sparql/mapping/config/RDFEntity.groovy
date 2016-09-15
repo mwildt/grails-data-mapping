@@ -1,6 +1,8 @@
 package org.grails.datastore.gorm.sparql.mapping.config
 
 import org.grails.datastore.mapping.config.Entity
+import org.grails.datastore.mapping.model.AbstractPersistentEntity
+import org.grails.datastore.mapping.model.MappingContext
 import org.openrdf.model.IRI
 import org.openrdf.model.vocabulary.RDF
 
@@ -9,7 +11,7 @@ import org.openrdf.model.vocabulary.RDF
  *
  * Created by mwildt on 30.06.16.
  */
-class SparqlMappingEntity extends Entity {
+class RDFEntity extends Entity {
 
     /*
      * the predicate used to specify the semantic type

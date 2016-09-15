@@ -24,6 +24,27 @@ class OneToOneSpec extends GormDatastoreSpec {
             pet.owner.firstName == "Fred"
     }
 
+    def "Test Bidirectional relationship is set inverse automaticly"(){
+        given:"A domain model with a one-to-one"
+            def nose = new Nose(hasFreckles: true)
+            def face = new Face(name:"Joe", nose: nose).save(flush:true);
+            nose.save(flush:true)
+            session.clear()
+
+        when: "face is set on nose"
+            session.clear()
+            nose = Nose.get(nose.id)
+        then:
+            nose.face != null
+            nose.face.name == "Joe"
+
+        when: "nose is set on face"
+            session.clear()
+            face = Face.get(face.id)
+        then:
+            face.nose != null
+    }
+
     def "Test persist and retrieve one-to-one with inverse key"() {
         given:"A domain model with a one-to-one"
             def face = new Face(name:"Joe")

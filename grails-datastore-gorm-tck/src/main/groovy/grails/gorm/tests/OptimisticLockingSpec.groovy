@@ -131,5 +131,6 @@ class OptLockNotVersioned implements Serializable {
 
     static mapping = {
         version false
+        test value1: "ja", value2: false
     }
 }

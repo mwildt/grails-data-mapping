@@ -1,9 +1,8 @@
 package org.grails.datastore.gorm.sparql.engine
 
 import groovy.transform.InheritConstructors
-import org.grails.datastore.gorm.sparql.entity.SparqlEntity
-import org.grails.datastore.gorm.sparql.mapping.config.SparqlMappingEntity
-import org.grails.datastore.gorm.sparql.mapping.config.SparqlMappingProperty
+import org.grails.datastore.gorm.sparql.mapping.config.RDFEntity
+import org.grails.datastore.gorm.sparql.mapping.config.RDFProperty
 import org.grails.datastore.gorm.sparql.query.SparqlQuery
 import org.grails.datastore.mapping.cache.TPCacheAdapterRepository
 import org.grails.datastore.mapping.collection.PersistentList
@@ -303,7 +302,7 @@ class TmpSparqlEntityPersister extends NativeEntryEntityPersister<SparqlNativePe
             return identifier;
         }
 
-        SparqlMappingEntity mappedForm = getMappingContext().getMappingFactory().createMappedForm(persistentEntity);
+        RDFEntity mappedForm = getMappingContext().getMappingFactory().createMappedForm(persistentEntity);
 
         setEntryValue(entry, mappedForm.predicate, this.getFamilyIRI());
         setEntryValue(entry, getIRI('identifier'), identifier)
@@ -400,7 +399,7 @@ class TmpSparqlEntityPersister extends NativeEntryEntityPersister<SparqlNativePe
     }
 
     IRI getPredicateForProperty(PersistentProperty prop){
-        final SparqlMappingProperty mappedProperty = prop.getMapping().getMappedForm();
+        final RDFProperty mappedProperty = prop.getMapping().getMappedForm();
         if(!mappedProperty){
             return getDefaultPredicateByName(prop.name)
         } else if(mappedProperty.predicate) {
@@ -469,7 +468,7 @@ class TmpSparqlEntityPersister extends NativeEntryEntityPersister<SparqlNativePe
         println " >> storeEntry (identifier = $storeId)"
 
         IRI iri = getIRIFromIdentifier(storeId);
-        (entityAccess.entity as SparqlEntity).setIRI(iri);
+        (entityAccess.entity as RDFEntity).setIRI(iri);
 
         Model model = new TreeModelFactory().createEmptyModel()
         nativeEntry.getAll().each { SparqlNativePersistentEntityProperty property ->
@@ -531,7 +530,7 @@ class TmpSparqlEntityPersister extends NativeEntryEntityPersister<SparqlNativePe
         ea.setProperty(ea.getIdentifierName(), nativeKey);
 
         IRI iri = getIRIFromIdentifier(nativeKey);
-        (ea.entity as SparqlEntity).setIRI(iri);
+        (ea.entity as RDFEntity).setIRI(iri);
 
         final List<PersistentProperty> props = persistentEntity.getPersistentProperties();
         for (final PersistentProperty prop : props) {

@@ -41,7 +41,8 @@ class Setup {
         datastore = new SparqlDatastore(ctx, repository)
 
         for (cls in classes) {
-            datastore.mappingContext.addPersistentEntity(cls)
+            def mappingContext = datastore.mappingContext
+            mappingContext.addPersistentEntity(cls)
         }
 
         def enhancer = new SparqlGormEnhancer(datastore, new DatastoreTransactionManager(datastore: datastore))

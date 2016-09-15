@@ -9,9 +9,7 @@ import org.grails.compiler.gorm.GormEntityTraitProvider
 @CompileStatic
 class SparqlEntityTraitProvider implements GormEntityTraitProvider {
 
-    public SparqlEntityTraitProvider(){
-        println "SparqlEntityTraitProvider"
-    }
+    public SparqlEntityTraitProvider(){}
 
     final Class entityTrait = SparqlEntity
 

@@ -6,7 +6,7 @@ import org.openrdf.model.IRI
 /**
  * Created by mwildt on 30.06.16.
  */
-class SparqlMappingProperty extends Property {
+class RDFProperty extends Property {
 
 
     /*

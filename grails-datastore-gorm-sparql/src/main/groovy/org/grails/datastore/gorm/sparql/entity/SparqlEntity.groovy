@@ -9,7 +9,7 @@ import org.grails.datastore.mapping.core.AbstractDatastore
 import org.openrdf.model.IRI
 
 /**
- * This thrait is used to add additional Methods do Domain Classes and Instances
+ * This trait is used to add additional Methods do Domain Classes and Instances
  * @param <D>
  */
 @CompileStatic

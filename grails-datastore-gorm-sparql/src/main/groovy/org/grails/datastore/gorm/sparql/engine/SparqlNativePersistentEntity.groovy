@@ -20,6 +20,7 @@ public class SparqlNativePersistentEntity {
     def String family;
     def SparqlEntityPersister persister;
     def Model model
+    def version;
 
     SparqlNativePersistentEntity(SparqlEntityPersister persister){
         this.family = persister.getEntityFamily()
@@ -92,7 +93,7 @@ public class SparqlNativePersistentEntity {
         return res;
     }
 
-    def convert(Value value){
+    def static convert(Value value){
         if(IRI.isAssignableFrom(value.class)){
             return value;
         } else  if(Literal.isAssignableFrom(value.class)){

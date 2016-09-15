@@ -2,14 +2,14 @@ package org.grails.datastore.gorm.sparql.engine
 
 import org.grails.datastore.gorm.sparql.SparqlPersistentEntity
 import org.grails.datastore.gorm.sparql.entity.SparqlEntity
-import org.grails.datastore.gorm.sparql.mapping.collection.SparqlPersistenSet
-import org.grails.datastore.gorm.sparql.mapping.config.SparqlMappingEntity
-import org.grails.datastore.gorm.sparql.mapping.config.SparqlMappingProperty
+import org.grails.datastore.gorm.sparql.mapping.config.RDFEntity
+import org.grails.datastore.gorm.sparql.mapping.config.RDFProperty
 import org.grails.datastore.gorm.sparql.query.SparqlQuery
 import org.grails.datastore.mapping.collection.PersistentList
 import org.grails.datastore.mapping.collection.PersistentSet
 import org.grails.datastore.mapping.collection.PersistentSortedSet
 import org.grails.datastore.mapping.config.Property
+import org.grails.datastore.mapping.core.OptimisticLockingException
 import org.grails.datastore.mapping.core.SessionImplementor
 import org.grails.datastore.mapping.core.impl.PendingInsert
 import org.grails.datastore.mapping.core.impl.PendingInsertAdapter
@@ -18,7 +18,6 @@ import org.grails.datastore.mapping.core.impl.PendingUpdate
 import org.grails.datastore.mapping.core.impl.PendingUpdateAdapter
 import org.grails.datastore.mapping.engine.EntityAccess
 import org.grails.datastore.mapping.engine.EntityPersister
-import org.grails.datastore.mapping.engine.NativeEntryEntityPersister
 import org.grails.datastore.mapping.engine.Persister
 import org.grails.datastore.mapping.model.PersistentEntity
 import org.grails.datastore.mapping.model.PersistentProperty
@@ -63,15 +62,22 @@ class SparqlEntityPersister extends EntityPersister {
 
     SparqlDatastore datastore
     ValueFactory valueFactory
+    RDFEntity mappedForm
 
     public SparqlEntityPersister(SparqlMappingContext mappingContext, SparqlPersistentEntity entity, SparqlSession session, SparqlDatastore datastore, ApplicationEventPublisher publisher) {
         super(mappingContext, entity, session, publisher)
         this.datastore = datastore
         this.valueFactory = datastore.repository.valueFactory
+        initalize()
+    }
+
+    private initalize(){
+        this.mappedForm = getMappingContext().getMappingFactory().createMappedForm(persistentEntity);
     }
 
     public SparqlEntityPersister(SparqlMappingContext mappingContext, SparqlPersistentEntity entity, SparqlSession session, ApplicationEventPublisher publisher) {
         super(mappingContext, entity, session, publisher)
+        initalize()
     }
 
     String getEntityFamily() {
@@ -82,6 +88,17 @@ class SparqlEntityPersister extends EntityPersister {
     protected List<Object> retrieveAllEntities(PersistentEntity pe, Serializable[] keys) {
         keys.collect { key ->
             retrieveEntity(pe, key)
+        }
+    }
+
+    public getVersionFromDataStore(identifier){
+        def iri = getIRIFromIdentifier(identifier);
+        def property = getPredicateForProperty(this.persistentEntity.getVersion());
+        RepositoryResult<Statement> statements = datastore.repository.connection.getStatements(iri, property, null)
+        if(statements.hasNext()){
+            return SparqlNativePersistentEntity.convert(statements.next().object)
+        } else {
+            return null;
         }
     }
 
@@ -111,7 +128,7 @@ class SparqlEntityPersister extends EntityPersister {
     }
 
     IRI getPredicateForProperty(PersistentProperty prop){
-        final SparqlMappingProperty mappedProperty = prop.getMapping().getMappedForm();
+        final RDFProperty mappedProperty = prop.getMapping().getMappedForm();
         if(!mappedProperty){
             return getDefaultPredicateByName(prop.name)
         } else if(mappedProperty.predicate) {
@@ -141,6 +158,15 @@ class SparqlEntityPersister extends EntityPersister {
             identifier =  nextValue;
         }
         return identifier
+    }
+
+    private convertToIdentifier(value){
+        if(this.persistentEntity.getIdentity().getType().isInstance(value)) {
+            return value
+        } else {
+            def res = value.toString().replace(DEFAULT_PREFIX + getEntityFamily() + "/", '');
+            return res;
+        }
     }
 
     private getIRIFromIdentifier(id){
@@ -196,15 +222,18 @@ class SparqlEntityPersister extends EntityPersister {
         if((session as SessionImplementor).isPendingAlready(obj)) {
             return (Serializable) identifier;
         }
+        if(isInsert && isVersioned(entityAccess) ) {
+            super.setVersion(entityAccess);
+        }
         (session as SessionImplementor).registerPending(obj);
+
         final PendingOperation<SparqlNativePersistentEntity, IRI> currentOperation = getPendingPersistOperation(isInsert, persistentEntity, identifier, entry, entityAccess)
 
         final List<PersistentProperty> properties = persistentEntity.getPersistentProperties();
 
-        SparqlMappingEntity mappedForm = getMappingContext().getMappingFactory().createMappedForm(persistentEntity);
+        def mappingFactory = getMappingContext().getMappingFactory()
 
-
-        entry.setProperty(mappedForm.predicate, this.getFamilyIRI());
+        entry.setProperty(this.mappedForm.predicate, this.getFamilyIRI());
         entry.setProperty(getIRI('identifier'), identifier)
 
         for(PersistentProperty prop : properties) {
@@ -226,29 +255,47 @@ class SparqlEntityPersister extends EntityPersister {
                     if (proxyFactory.isInitialized(associatedObject) && !session.contains(associatedObject) ) {
                         Serializable tempId = associationPersister.getObjectIdentifier(associatedObject);
                         if (tempId == null) {
-                            if (toOne.isOwningSide()) {
-                                tempId = session.persist(associatedObject);
-                            }}
+                            tempId = session.persist(associatedObject);
+                        }
                         associationId = tempId;
                     } else {
                         associationId = associationPersister.getObjectIdentifier(associatedObject)
                     }
+                    if(SparqlEntityPersister.isInstance(associationPersister)){
+                        associationId = (associationPersister as SparqlEntityPersister).getIRIFromIdentifier(associationId);
+                    }
                     entry.setProperty(predicate, associationId)
+
+
+                    // hier Cascading-Operation, falls auch die Rückseite gesetzt werden muss...
                     if(toOne.isBidirectional()){
+                         /*
+                          * wenn es sich um eine bidirektionale Verbinung handelt muss auch die inverse Seite gesetzt werden.
+                          *
+                          * 1) setzen von self in der inversen assiziation
+                          */
+
                         Association inverseSide = toOne.getInverseSide()
                         if(inverseSide instanceof ToMany){ // ManyToMany
                             // Hier muss jetzt das listengeraffel eingebaut werden
 
                         } else if(inverseSide instanceof ToOne) { // One to One
                             EntityAccess inverseAccess = createEntityAccess(inverseSide.getOwner(), associatedObject);
-                            inverseAccess.setProperty(inverseSide.getName(), associatedObject);
-
-                            // delete(?acssoc ?inver ?obj)
-                            // insert(?acssoc ?inver ?obj)
-
+                            def inversePropertyValue = inverseAccess.getProperty(inverseSide.getName());
+                            if(inversePropertyValue && inversePropertyValue.id == identifier){
+                                // allready set nothing to do here
+                            } else {
+                                inverseAccess.setProperty(inverseSide.getName(), obj);
+                                def inverseIRI = (associationPersister as SparqlEntityPersister).getIRIFromIdentifier(inverseAccess.getIdentifier())
+                                def inversePredicate = (associationPersister as SparqlEntityPersister).getPredicateForProperty(inverseSide);
+                                // TODO: Das hier sollte als Cascade-Operation erfolgen
+                                println "remove($inverseIRI, $inversePredicate, null) "
+                                datastore.repository.connection.remove(inverseIRI, inversePredicate, null);
+                                println "add($inverseIRI, $inversePredicate, ${getIRIFromIdentifier(identifier)})"
+                                datastore.repository.connection.add(inverseIRI, inversePredicate, getIRIFromIdentifier(identifier));
+                            }
                         }
                     }
-
                 }
 
             } else if(prop instanceof ToMany) {
@@ -340,10 +387,27 @@ class SparqlEntityPersister extends EntityPersister {
 
     protected void updateEntry(PersistentEntity persistentEntity, EntityAccess entityAccess, Serializable storeId, SparqlNativePersistentEntity nativeEntry) {
         println " >> updateEntry (identifier = $storeId)"
+
+        checkOptimisticLock(persistentEntity, storeId, entityAccess, nativeEntry)
         IRI iri = getIRIFromIdentifier(storeId)
+
         datastore.repository.connection.remove(iri, (IRI) null, null)
         storeEntry(entityAccess, storeId, nativeEntry);
     }
+
+    private void checkOptimisticLock(PersistentEntity persistentEntity, Serializable storeId, EntityAccess entityAccess, SparqlNativePersistentEntity nativeEntry) {
+        if (this.mappedForm.isVersioned()) {
+            def dataStoreVersion = getVersionFromDataStore(storeId)
+            def currentVersion = super.getCurrentVersion(entityAccess)
+            if (currentVersion < dataStoreVersion) {
+                throw new OptimisticLockingException(persistentEntity, storeId)
+            }
+            super.incrementVersion(entityAccess)
+            currentVersion = super.getCurrentVersion(entityAccess)
+            nativeEntry.setProperty(getPredicateForProperty(persistentEntity.getVersion()), currentVersion)
+        }
+    }
+
 
     public Object createObjectFromNativeEntry(PersistentEntity persistentEntity, Serializable nativeKey, SparqlNativePersistentEntity nativeEntry) {
         // persistentEntity = discriminatePersistentEntity(persistentEntity, nativeEntry);
@@ -407,28 +471,37 @@ class SparqlEntityPersister extends EntityPersister {
         final List<PersistentProperty> props = persistentEntity.getPersistentProperties()
         for (final PersistentProperty prop : props) {
             String propKey = prop.getName();
-            println "read property $propKey";
+            print "read property $propKey ";
             if (prop instanceof Simple) {
                 // this magically converts most types to the correct property type, using bean converters.
                 ea.setProperty(prop.getName(), nativeEntry.getValue(propKey));
+                print "Simple " + nativeEntry.getValue(propKey)
             } else if (prop instanceof Basic) { // Basic Collection Type
                 def values = nativeEntry.getValue(propKey);
                 ea.setProperty(prop.getName(), values);
+                print "Simple " + values
             } else if (prop instanceof Custom) {
                 // handle Custom
             } else if (prop instanceof ToOne) {
                 ToOne toOne = prop as ToOne;
                 final Serializable associationId = nativeEntry.getValue(propKey);
-                PropertyMapping<Property> associationPropertyMapping = toOne.getMapping();
-                boolean isLazy = isLazyAssociation(associationPropertyMapping);
-                Object value = isLazy ?
-                        session.proxy(toOne.getType(), associationId) :
-                        session.retrieve(toOne.getType(), associationId);
-                ea.setProperty(toOne.getName(), value);
+                print "ToOne " + associationId
+                if(null != associationId){
+                    PropertyMapping<Property> associationPropertyMapping = toOne.getMapping();
+                    boolean isLazy = isLazyAssociation(associationPropertyMapping);
+                    Persister associationPersister = session.getPersister(prop.getAssociatedEntity())
+                    if(SparqlEntityPersister.isInstance(associationPersister)){ // leider können wir den Proxy nur mit ID und nicht mit IRI erzeugen
+                        associationId =  (associationPersister as SparqlEntityPersister).convertToIdentifier(associationId)
+                    }
+                    Object value = isLazy ? session.proxy(toOne.getType(), associationId)
+                        : session.retrieve(toOne.getType(), associationId)
+                    ea.setProperty(toOne.getName(), value);
+                }
             } else if (prop instanceof ToMany) {
                 Association association = (Association) prop;
                 PropertyMapping<Property> associationPropertyMapping = association.getMapping();
                 def values = nativeEntry.getValue(propKey);
+                print "ToMany " + values
                 boolean isLazy = isLazyAssociation(associationPropertyMapping);
                 if (isLazy) {
                     if (List.class.isAssignableFrom(association.getType())) {
@@ -449,6 +522,8 @@ class SparqlEntityPersister extends EntityPersister {
             } else {
                 throw new RuntimeException("the property type $prop is not supported");
             }
+
+            println ""
         }
     }
 
