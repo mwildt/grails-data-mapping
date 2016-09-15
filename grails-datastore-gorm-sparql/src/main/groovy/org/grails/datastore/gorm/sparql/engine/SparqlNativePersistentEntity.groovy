@@ -4,10 +4,16 @@ import org.grails.datastore.mapping.model.PersistentProperty
 import org.openrdf.model.IRI
 import org.openrdf.model.Literal
 import org.openrdf.model.Model
+import org.openrdf.model.Statement
 import org.openrdf.model.Value
 import org.openrdf.model.impl.LinkedHashModel
+import org.openrdf.model.impl.TreeModelFactory
 import org.openrdf.model.util.RDFCollections
 import org.openrdf.model.vocabulary.XMLSchema
+import org.openrdf.query.QueryResult
+import org.openrdf.query.QueryResults
+import org.openrdf.repository.RepositoryConnection
+import org.openrdf.repository.RepositoryResult
 import org.openrdf.repository.util.Connections
 
 /**
@@ -15,29 +21,49 @@ import org.openrdf.repository.util.Connections
  */
 public class SparqlNativePersistentEntity {
 
-    private LinkedList<SparqlNativePersistentEntityProperty> data = new LinkedList<SparqlNativePersistentEntityProperty>();
+   private LinkedList<SparqlNativePersistentEntityProperty> data = new LinkedList<SparqlNativePersistentEntityProperty>();
+
+    def modelFactory = new TreeModelFactory();
 
     def String family;
     def SparqlEntityPersister persister;
-    def Model model
+    def RepositoryConnection connection;
+
+    def Model model = modelFactory.createEmptyModel()
+    def Model deletes = modelFactory.createEmptyModel()
+    def IRI iri
+
     def version;
 
     SparqlNativePersistentEntity(SparqlEntityPersister persister){
         this.family = persister.getEntityFamily()
         this.persister = persister
+        this.connection = persister.datastore.repository.connection
+    }
+
+    def SparqlNativePersistentEntity withIRI(IRI iri){
+        this.iri = iri;
+        return this;
+    }
+
+    def init(IRI iri){
+        this.iri = iri;
+        this.model = modelFactory.createEmptyModel()
+        RepositoryResult<Statement> statements = connection.getStatements(iri, null, null);
+        this.deletes = QueryResults.asModel(statements);
     }
 
     def getIdentifier(){
-        SparqlNativePersistentEntityProperty prop = getOne(persister.getIRI('identifier'));
-        if(IRI.isAssignableFrom(prop.value.class)){
-            return prop.value
+        Value value = getOne(persister.getIRI('identifier'));
+        if(IRI.isAssignableFrom(value.class)){
+            return value
         } else {
-            return prop.value.stringValue();
+            return convert(value);
         }
     }
 
 //    def setProperty(IRI predicate, Collection values){
-//        this.addAll(predicate, values)
+//       this.model.add(list)
 //    }
 
     def setProperty(IRI predicate, Object value) {
@@ -77,21 +103,34 @@ public class SparqlNativePersistentEntity {
         if(Collection.isAssignableFrom(persistentProperty.type)){
             def head = getOne(predicate);
             if(head){
-                Model rdfList = Connections.getRDFCollection(persister.datastore.repository.connection, head.value, new LinkedHashModel());
-                res = RDFCollections.asValues(rdfList, head.value, new ArrayList<Value>()).collect{ value ->
+                Model rdfList = Connections.getRDFCollection(connection, head, new LinkedHashModel());
+                res = RDFCollections.asValues(rdfList, head, new ArrayList<Value>()).collect{ value ->
                     convert(value)
                 }
             } else {
                 res = createEmptyCollection(persistentProperty.type)
             }
         } else {
-            SparqlNativePersistentEntityProperty item = getOne(predicate);
+            Value item = getOne(predicate);
             if(item) {
-                res = convert(item.value)
+                res = convert(item);
             }
         }
         return res;
     }
+
+
+
+    def toValue(Object value){
+        if(null == value){
+            return null
+        } else if(Value.isAssignableFrom(value.class)){
+            return value;
+        } else {
+            persister.getLiteral(value)
+        }
+    }
+
 
     def static convert(Value value){
         if(IRI.isAssignableFrom(value.class)){
@@ -115,14 +154,44 @@ public class SparqlNativePersistentEntity {
         return value.stringValue()
     }
 
-    private addCollection(IRI predicate, Collection values){
-        this.data.add(SparqlNativePersistentEntityProperty.withData(predicate, values))
+    def update(IRI predicate, Collection values){
+        // die alte Liste entfernen
+        def head = getOne(predicate);
+        if(head) {
+            Model oldList = Connections.getRDFCollection(connection, head, new LinkedHashModel());
+            deletes.addAll(oldList)
+        }
+        if(values){
+            head = persister.datastore.repository.valueFactory.createBNode()
+            def list = RDFCollections.asRDF(values, head, new LinkedHashModel())
+            model.addAll(list)
+            model.add(this.iri, predicate, head)
+        }
     }
 
-    private void addAll(IRI predicate, Value ... values){
-        values.each { value ->
-            add(predicate, value)
-        }
+    private addCollection(IRI predicate, Collection values){
+        this.data.add(SparqlNativePersistentEntityProperty.withData(predicate, values))
+        def head = persister.datastore.repository.valueFactory.createBNode()
+        def list = RDFCollections.asRDF(values, head, new LinkedHashModel())
+        model.addAll(list)
+        model.add(this.iri, predicate, head)
+
+    }
+
+//    private void addAll(IRI predicate, Value ... values){
+//        values.each { value ->
+//            add(predicate, value)
+//        }
+//    }
+
+    def update(IRI iri, IRI predicate, value){
+        update(iri, predicate, toValue(value))
+    }
+    
+    def update(IRI iri, IRI predicate, Value value){
+        this.model.add(iri, predicate, value);
+        def deleteModel = connection.getStatements(iri, predicate, null as Value)
+        this.deletes.addAll(QueryResults.asModel(deleteModel))
     }
 
     private void addAll(IRI predicate, List<Value> values){
@@ -133,22 +202,16 @@ public class SparqlNativePersistentEntity {
 
     private void add(IRI predicate, Value value){
         this.data.add(SparqlNativePersistentEntityProperty.withData(predicate, value))
+        this.model.add(this.iri, predicate, value)
     }
 
-    public SparqlNativePersistentEntityProperty getOne(IRI predicate){
-        this.data.find { SparqlNativePersistentEntityProperty property ->
-            property.predicate == predicate
-        }
+    public Value getOne(IRI predicate){
+        Model result = this.model.filter(iri, predicate, null as Value)
+        result.isEmpty() ? null: result.first().object
     }
 
-    public List<SparqlNativePersistentEntityProperty>  getAll(){
-        return this.data;
-    }
-
-    public List<SparqlNativePersistentEntityProperty> getAll(IRI predicate){
-        this.data.findAll { SparqlNativePersistentEntityProperty property ->
-            property.predicate == predicate
-        }
+    public List<Value> getAll(IRI predicate){
+        this.model.filter(iri, predicate, null as Value).objects();
     }
 
 }

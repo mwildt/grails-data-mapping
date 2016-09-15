@@ -5,7 +5,8 @@ import org.grails.datastore.mapping.model.AbstractPersistentEntity
 import org.grails.datastore.mapping.model.MappingContext
 
 /**
- * Created by didier on 12.05.16.
+ *
+ * Holds Information about a Persistent Entity
  */
 class SparqlPersistentEntity extends AbstractPersistentEntity<RDFEntity>{
 

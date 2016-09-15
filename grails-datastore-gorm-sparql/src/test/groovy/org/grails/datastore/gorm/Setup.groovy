@@ -10,8 +10,6 @@ import org.grails.datastore.mapping.transactions.DatastoreTransactionManager
 import org.openrdf.model.IRI
 import org.openrdf.repository.Repository
 import org.openrdf.repository.http.HTTPRepository
-import org.openrdf.repository.sail.SailRepository
-import org.openrdf.sail.memory.MemoryStore
 import org.springframework.context.support.GenericApplicationContext
 
 /**

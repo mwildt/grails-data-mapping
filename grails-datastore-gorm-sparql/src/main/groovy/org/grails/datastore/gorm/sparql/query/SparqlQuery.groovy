@@ -139,7 +139,9 @@ class SparqlQuery extends Query implements QueryArgumentsAware {
 
         TupleQueryResult result = tupleQuery.evaluate()
         Map map = new LinkedHashMap<IRI, SparqlNativePersistentEntity>()
-                .withDefault {new SparqlNativePersistentEntity(persister)}
+                .withDefault {IRI iri ->
+                    new SparqlNativePersistentEntity(persister).withIRI(iri)
+                }
 
         while (result.hasNext()) {  // iterate over the result
             BindingSet bindingSet = result.next();

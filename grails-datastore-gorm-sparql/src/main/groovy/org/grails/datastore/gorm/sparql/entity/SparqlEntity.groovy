@@ -6,6 +6,7 @@ import org.grails.datastore.gorm.sparql.engine.SparqlDatastore
 import org.grails.datastore.gorm.sparql.engine.SparqlEntityPersister
 import org.grails.datastore.gorm.sparql.engine.SparqlNativeInterface
 import org.grails.datastore.mapping.core.AbstractDatastore
+import org.grails.datastore.mapping.dirty.checking.DirtyCheckable
 import org.openrdf.model.IRI
 
 /**

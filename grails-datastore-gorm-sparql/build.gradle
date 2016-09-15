@@ -16,6 +16,7 @@ dependencies {
 
     compile 'org.openrdf.sesame:sesame-runtime:4.1.1'
 
+
     // during development (aka snapshot version), use project dependencies
     // during release, use 'regular' dependencies
     compile project(":grails-datastore-gorm"),

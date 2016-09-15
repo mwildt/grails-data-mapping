@@ -11,7 +11,7 @@ import grails.gorm.tests.*
 @RunWith(Suite)
 @Suite.SuiteClasses([
       CrudOperationsSpec,
-      OneToManySpec,
+//      OneToManySpec,
       OneToOneSpec,
       OptimisticLockingSpec
 ])

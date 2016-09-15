@@ -8,7 +8,6 @@ import org.openrdf.model.vocabulary.RDF
 
 /**
  * Is used to access the mapping-configuration from a Domain Class
- *
  * Created by mwildt on 30.06.16.
  */
 class RDFEntity extends Entity {
