@@ -19,19 +19,54 @@ class WithListAttribute {
 @Entity
 class User {
     String label
+
     Profile profile
 
-    def static hasOne = [
-        profile: Profile
+    def static mappedBy = [
+        profile : 'user'
     ]
 }
 
 @Entity
 class Profile {
     String label
-    User user
 
-    def static hasOne = [
-        user: User
+    User user
+    User owner
+
+    def static mappedBy = [
+        user : 'profile'
     ]
 }
+
+@Entity
+class Person {
+    String name
+    Person parent
+    Person supervisor
+//    static belongsTo = [ supervisor: Person ]
+
+    static mappedBy = [ supervisor: "none", parent: "none" ]
+
+}
+
+@Entity class NorUser {
+    String username
+
+    static belongsTo = [
+        profile: NorCandidate
+    ]
+    static mappedBy = [
+        profile: "none",
+        //owner: null
+    ]
+}
+
+@Entity class NorCandidate {
+    String name
+
+//    NorUser lastEditedBy
+    NorUser owner
+
+}
+

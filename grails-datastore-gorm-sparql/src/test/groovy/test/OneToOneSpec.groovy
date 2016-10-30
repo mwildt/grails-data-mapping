@@ -1,10 +1,11 @@
 package test
 
 import grails.gorm.tests.GormDatastoreSpec
+import model.NorCandidate
+import model.NorUser
+import model.Person
 import model.Profile
 import model.User
-import model.WithListAttribute
-import org.grails.datastore.mapping.dirty.checking.DirtyCheckable
 
 /**
  * Created by mwildt on 30.06.16.
@@ -12,7 +13,7 @@ import org.grails.datastore.mapping.dirty.checking.DirtyCheckable
 class OneToOneSpec extends GormDatastoreSpec{
 
     List getDomainClasses() {
-        [User, Profile]
+        [User, Profile, Person, NorCandidate, NorUser]
     }
 
     def "test bidirectional OntToOne update"(){
@@ -43,5 +44,46 @@ class OneToOneSpec extends GormDatastoreSpec{
             u2.profile == p1
     }
 
+//    def "test mapped by"(){
+//        given:
+//            Profile p1 = new Profile().save()
+//            User u1 = new User(profile: p1).save();
+//            session.flush()
+//            session.clear()
+//        when:
+//            def profile = Profile.get(p1.getId());
+//        then:
+//            profile.user == u1
+//            profile.owner == null
+//    }
+
+    def "mapped by none "(){
+        given:
+            Person p1 = new Person().save()
+            Person p2 = new Person(parent: p1).save();
+            session.flush()
+            session.clear()
+        when:
+            Person l1 = Person.get(p1.id)
+            Person l2 = Person.get(p2.id)
+        then:
+            l1.parent == null;
+            l1.supervisor == null;
+            l2.parent == l1;
+            l2.supervisor == null;
+    }
+
+    def "unidirectional test"(){
+        given:
+            NorCandidate c = new NorCandidate(name: "Malte Wildt").save()
+            NorUser mwildt = new NorUser(username: "mwildt", profile: c).save();
+            session.flush()
+            session.clear()
+        when:
+            NorCandidate cl = NorCandidate.get(c.id);
+        then:
+            cl.getLastEditedBy() == null;
+            cl.getOwner() == null;
+    }
 }
 

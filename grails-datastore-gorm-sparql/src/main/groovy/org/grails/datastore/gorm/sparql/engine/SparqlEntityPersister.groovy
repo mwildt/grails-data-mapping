@@ -26,6 +26,7 @@ import org.grails.datastore.mapping.model.PropertyMapping
 import org.grails.datastore.mapping.model.types.Association
 import org.grails.datastore.mapping.model.types.Basic
 import org.grails.datastore.mapping.model.types.Custom
+import org.grails.datastore.mapping.model.types.OneToMany
 import org.grails.datastore.mapping.model.types.Simple
 import org.grails.datastore.mapping.model.types.ToMany
 import org.grails.datastore.mapping.model.types.ToOne
@@ -233,10 +234,6 @@ class SparqlEntityPersister extends EntityPersister {
         }
         (session as SessionImplementor).registerPending(obj);
 
-
-
-        def mappingFactory = getMappingContext().getMappingFactory()
-
         SparqlNativePersistentEntity entry = new SparqlNativePersistentEntity(this)
         entry.init(this.getIRIFromIdentifier(identifier));
         entry.setProperty(this.mappedForm.predicate, this.getFamilyIRI());
@@ -245,7 +242,7 @@ class SparqlEntityPersister extends EntityPersister {
         final PendingOperation<SparqlNativePersistentEntity, IRI> currentOperation = getPendingPersistOperation(isInsert, persistentEntity, identifier, entry, entityAccess)
         for(PersistentProperty prop :  persistentEntity.getPersistentProperties()) {
             def predicate = getPredicateForProperty(prop)
-            println "map property to persist: ${prop.getName()} -> $predicate"
+            println "map property to persist ob class ${persistentEntity.getName()}: ${prop.getName()} -> $predicate"
             if(prop instanceof Simple){
                 Object propValue = entityAccess.getProperty(prop.getName());
                 entry.setProperty(predicate, propValue);
@@ -277,74 +274,70 @@ class SparqlEntityPersister extends EntityPersister {
                         // CascadingOperation
                         Association inverseSide = toOne.getInverseSide()
                         if(inverseSide instanceof ToMany){ // ManyToMany
-                            // Hier muss jetzt das listengeraffel eingebaut werden
-                        } else if(inverseSide instanceof ToOne) { // One to One
+                            /**
+                             * TODO: Hier muss jetzt das listengeraffel eingebaut werden
+                             * 1) Die eigene ID muss in das entsprechende Objket gesetzt werden. (Kann nur 1 Mal vorkommen weil die id unique sein sollte n:1)
+                             * 2) Den alten Stand der List aus der DB-Laden
+                             * 3) den alten Stand ins delete -Model aufnehmen
+                             * 4) den neuen Stand der Liste in insert Model aufnehmen
+                             * 5) die lock-version bei der Abhängigen Entität erhöhen.
+                             *
+                             * TODO: Was ist eigen tlich wenn die Referenz gelöscht werden soll? Dann muss ja auch die Inverse Referenz entfernt werden.
+                             */
                             EntityAccess inverseAccess = createEntityAccess(inverseSide.getOwner(), associatedObject);
-                            def inversePropertyValue = inverseAccess.getProperty(inverseSide.getName());
-                            if(inversePropertyValue && inversePropertyValue.id == identifier){
-                                // allready set nothing to do here
-                            } else {
-                                inverseAccess.setProperty(inverseSide.getName(), obj);
+                            Collection inversePropertyValue = inverseAccess.getProperty(inverseSide.getName());
+
+                            if(!inversePropertyValue.findAll{it.id == identifier}){
+                                inversePropertyValue.add(obj);
+
                                 def inverseIRI = (associationPersister as SparqlEntityPersister).getIRIFromIdentifier(inverseAccess.getIdentifier())
                                 def inversePredicate = (associationPersister as SparqlEntityPersister).getPredicateForProperty(inverseSide);
                                 def versionPredicate = (associationPersister as SparqlEntityPersister).getDefaultPredicateByName('version')
-
-                                // TODO: Das hier sollte als Cascade-Operation erfolgen
-                                if(!isInsert){
-                                    def persistentValue = ((DirtyCheckable)obj).getOriginalValue(toOne.name);
-                                    if(null != persistentValue){
-                                        EntityAccess persistentInverseAccess = createEntityAccess(inverseSide.getOwner(), persistentValue);
-                                        persistentInverseAccess.setProperty(inverseSide.getName(), null);
-                                        super.incrementVersion(persistentInverseAccess)
-                                        def incrementedVersion = super.getCurrentVersion(persistentInverseAccess)
-                                        def persistentValueIRI = (associationPersister as SparqlEntityPersister).getIRIFromIdentifier(persistentInverseAccess.getIdentifier())
-                                        entry.deletes.add(persistentValueIRI, inversePredicate, entry.iri);
-                                        entry.update(persistentValueIRI, versionPredicate, incrementedVersion);
-                                    }
-                                }
+                                // values muss eine collection von Values sein
+                                Collection values = inversePropertyValue.collect {
+                                    Serializable objId = this.getObjectIdentifier(it);
+                                    return this.getIRIFromIdentifier(objId);
+                                };
+                                entry.updateCollection(inverseIRI, inversePredicate, values);
                                 super.incrementVersion(inverseAccess)
                                 def incrementedVersion = super.getCurrentVersion(inverseAccess)
-
-                                entry.update(inverseIRI, inversePredicate, entry.iri);
                                 entry.update(inverseIRI, versionPredicate, incrementedVersion);
                             }
+
+
+                            println "TODO: ManyToOne bidirectional for property ${prop.getName()} of Type ${prop.getType()}"
+                        } else if(inverseSide instanceof ToOne) { // One to One
+                            handleInverseToOne(inverseSide, associatedObject, identifier, obj, associationPersister, isInsert, toOne, entry)
                         }
                     }
                 }
-            } else if(prop instanceof ToMany) {
-                final ToMany toMany = prop as ToMany
+            } else if(prop instanceof OneToMany) {
+                final ToMany toMany = prop as OneToMany
                 final Object propValue = entityAccess.getProperty(toMany.getName());
                 if (propValue instanceof Collection) {
                     Collection associatedObjects = (Collection) propValue;
                     PersistentEntity associatedEntity = toMany.getAssociatedEntity();
-                    if(associatedEntity != null) {
-                        Persister associationPersister = session.getPersister(associatedEntity)
-                        def foreignIdentifiers =  associatedObjects.collect{ associatedObject ->
-                            if(associatedObject != null) {
-                                if (proxyFactory.isInitialized(associatedObject) && !session.contains(associatedObject) ) {
-                                    Serializable tempId = associationPersister.getObjectIdentifier(associatedObject);
-                                    if (tempId == null) {
-                                        tempId = associationPersister.persist(associatedObject);
-                                    }
-                                    if(associationPersister instanceof  SparqlEntityPersister){
-                                        tempId = (associationPersister as SparqlEntityPersister).getIRIFromIdentifier(tempId)
-                                    }
-                                    return tempId;
-                                } else {
-                                    Serializable tmpid = associationPersister.getObjectIdentifier(associatedObject)
-                                    if(associationPersister instanceof  SparqlEntityPersister){
-                                        tmpid = (associationPersister as SparqlEntityPersister).getIRIFromIdentifier(tmpid)
-                                    }
-                                    return tmpid;
+                    if (associatedEntity != null) {
+                        final Persister associationPersister = session.getPersister(associatedEntity)
+                        def foreignIdentifiers = associatedObjects.collect { associatedObject ->
+                            Serializable associatedId = handelTOManyReferences(associatedObject, associationPersister)
+                            Association inverseSide = toMany.getInverseSide()
+                            // handling der inversen
+                            if (toMany.isBidirectional()) {
+                                if (inverseSide instanceof ToOne) {
+                                    // We have a oneToMany -> Inverse -> manyToOne relation
+                                    handleInverseToOne(inverseSide, associatedObject, identifier, obj, associationPersister, isInsert, inverseSide as ToOne, entry)
                                 }
                             }
-                            return null;
-                        }
+                            return associatedId
+                        } // end collect
                         entry.update(predicate, foreignIdentifiers);
+                    } else {
+                        println "no persistent entity for property ${prop.getName()} of Type ${prop.getType()}"
                     }
                 }
             } else {
-                println "Unsupported "
+                println "Unsupported property type ${prop.getType()} for property $prop"
             }
         }
 
@@ -357,6 +350,69 @@ class SparqlEntityPersister extends EntityPersister {
         }
 
         return identifier
+    }
+
+    private void handleInverseToOne(ToOne inverseSide, Object associatedObject, Serializable identifier, obj, Persister associationPersister, boolean isInsert, Association prop, SparqlNativePersistentEntity entry) {
+        EntityAccess inverseAccess = createEntityAccess(inverseSide.getOwner(), associatedObject);
+        def inversePropertyValue = inverseAccess.getProperty(inverseSide.getName());
+        if (inversePropertyValue && inversePropertyValue.id == identifier) {
+            // allready set nothing to do here
+        } else {
+            inverseAccess.setProperty(inverseSide.getName(), obj);
+            def inverseIRI = (associationPersister as SparqlEntityPersister).getIRIFromIdentifier(inverseAccess.getIdentifier())
+            def inversePredicate = (associationPersister as SparqlEntityPersister).getPredicateForProperty(inverseSide);
+            def versionPredicate = (associationPersister as SparqlEntityPersister).getDefaultPredicateByName('version')
+
+            // TODO: Das hier sollte als Cascade-Operation erfolgen
+            if (!isInsert) {
+                def persistentValue = ((DirtyCheckable) obj).getOriginalValue(prop.name);
+                if (null != persistentValue) {
+                    EntityAccess persistentInverseAccess = createEntityAccess(inverseSide.getOwner(), persistentValue);
+                    persistentInverseAccess.setProperty(inverseSide.getName(), null);
+                    super.incrementVersion(persistentInverseAccess)
+                    def incrementedVersion = super.getCurrentVersion(persistentInverseAccess)
+                    def persistentValueIRI = (associationPersister as SparqlEntityPersister).getIRIFromIdentifier(persistentInverseAccess.getIdentifier())
+                    entry.deletes.add(persistentValueIRI, inversePredicate, entry.iri);
+                    entry.update(persistentValueIRI, versionPredicate, incrementedVersion);
+                }
+            }
+            super.incrementVersion(inverseAccess)
+            def incrementedVersion = super.getCurrentVersion(inverseAccess)
+
+            entry.update(inverseIRI, inversePredicate, entry.iri);
+            entry.update(inverseIRI, versionPredicate, incrementedVersion);
+        }
+    }
+
+
+    private Serializable handelTOManyReferences(associatedObject, final Persister associationPersister) {
+        /**
+         * Herausfinden, welche id das Abhängie Objekt hat.
+         */
+        Serializable tempId = null;
+        if (associatedObject != null) {
+            if (proxyFactory.isInitialized(associatedObject) && !session.contains(associatedObject)) {
+                tempId = associationPersister.getObjectIdentifier(associatedObject);
+                if (tempId == null) {
+                    tempId = associationPersister.persist(associatedObject);
+                }
+                if (associationPersister instanceof SparqlEntityPersister) {
+                    tempId = (associationPersister as SparqlEntityPersister).getIRIFromIdentifier(tempId)
+                }
+            } else {
+                tempId = associationPersister.getObjectIdentifier(associatedObject)
+                if (associationPersister instanceof SparqlEntityPersister) {
+                    tempId = (associationPersister as SparqlEntityPersister).getIRIFromIdentifier(tempId)
+                }
+            }
+            /**
+             * Jeder der associatedObjects muss ebenfalls die Beziehung gesetzt bekommen.
+             * Die neue Beziehung muss außerdem in Model auf invers aufgenommen werden.
+             */
+        } else {
+            println "found null reference in collection for property ${prop.getName()} of Type ${prop.getType()}"
+        }
+        return tempId;
     }
 
     /**

@@ -13,7 +13,7 @@ import org.springframework.core.env.PropertyResolver
  * Builds a HibernateMappingContext
  */
 @CompileStatic
-class HibernateMappingContextFactoryBean implements FactoryBean<MappingContext>, ApplicationContextAware {
+class soundHibernateMappingContextFactoryBean implements FactoryBean<MappingContext>, ApplicationContextAware {
 
     private static final String DEFAULT_CONSTRAINTS = 'grails.gorm.default.constraints'
     PropertyResolver configuration

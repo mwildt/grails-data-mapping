@@ -21,8 +21,6 @@ import org.openrdf.repository.util.Connections
  */
 public class SparqlNativePersistentEntity {
 
-   private LinkedList<SparqlNativePersistentEntityProperty> data = new LinkedList<SparqlNativePersistentEntityProperty>();
-
     def modelFactory = new TreeModelFactory();
 
     def String family;
@@ -96,6 +94,7 @@ public class SparqlNativePersistentEntity {
     }
 
     def getValue(String propertyKey){
+        println "get value for property ${propertyKey}"
         def res = null;
         PersistentProperty persistentProperty = persister.persistentEntity.getPropertyByName(propertyKey);
         IRI predicate = persister.getPredicateForProperty(persistentProperty);
@@ -103,6 +102,7 @@ public class SparqlNativePersistentEntity {
         if(Collection.isAssignableFrom(persistentProperty.type)){
             def head = getOne(predicate);
             if(head){
+                println "head: $head"
                 Model rdfList = Connections.getRDFCollection(connection, head, new LinkedHashModel());
                 res = RDFCollections.asValues(rdfList, head, new ArrayList<Value>()).collect{ value ->
                     convert(value)
@@ -170,19 +170,30 @@ public class SparqlNativePersistentEntity {
     }
 
     private addCollection(IRI predicate, Collection values){
-        this.data.add(SparqlNativePersistentEntityProperty.withData(predicate, values))
+        addCollection(this.iri, predicate, values);
+    }
+
+    private addCollection(IRI iri, IRI predicate, Collection values){
         def head = persister.datastore.repository.valueFactory.createBNode()
         def list = RDFCollections.asRDF(values, head, new LinkedHashModel())
         model.addAll(list)
-        model.add(this.iri, predicate, head)
-
+        model.add(iri, predicate, head)
     }
 
-//    private void addAll(IRI predicate, Value ... values){
-//        values.each { value ->
-//            add(predicate, value)
-//        }
-//    }
+    def updateCollection(IRI iri, IRI predicate, Collection values){
+        removeCollection(iri, predicate);
+        addCollection(iri, predicate, values);
+    }
+
+    def removeCollection(IRI iri, IRI predicate){
+        def anchorQueryStatements = connection.getStatements(iri, predicate, null as Value);
+        if(anchorQueryStatements.hasNext()){
+            Statement anchor = anchorQueryStatements.next()
+            deletes.addAll(anchor)
+            Model rdfList = Connections.getRDFCollection(connection, anchor.getObject(), new LinkedHashModel())
+            this.deletes.addAll(rdfList)
+        }
+    }
 
     def update(IRI iri, IRI predicate, value){
         update(iri, predicate, toValue(value))
@@ -201,7 +212,6 @@ public class SparqlNativePersistentEntity {
     }
 
     private void add(IRI predicate, Value value){
-        this.data.add(SparqlNativePersistentEntityProperty.withData(predicate, value))
         this.model.add(this.iri, predicate, value)
     }
 

@@ -64,7 +64,7 @@ class HibernateDatastoreSpringInitializer extends AbstractDatastoreInitializer {
     String ddlAuto = "update"
     Set<String> dataSources = [defaultDataSourceBeanName]
     boolean enableReload = false
-
+en
     @Override
     protected Class<AbstractDatastorePersistenceContextInterceptor> getPersistenceInterceptorClass() {
         DatastorePersistenceContextInterceptor

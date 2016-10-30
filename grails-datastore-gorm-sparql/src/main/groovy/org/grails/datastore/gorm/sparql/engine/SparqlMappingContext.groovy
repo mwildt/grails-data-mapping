@@ -1,6 +1,7 @@
 package org.grails.datastore.gorm.sparql.engine
 
 import org.grails.datastore.gorm.sparql.SparqlPersistentEntity
+import org.grails.datastore.gorm.sparql.mapping.config.SparqlMappingConfigurationStrategy
 import org.grails.datastore.gorm.sparql.mapping.config.SparqlMappingFactory
 import org.grails.datastore.mapping.config.Entity
 import org.grails.datastore.mapping.config.Property
@@ -36,7 +37,8 @@ class SparqlMappingContext extends AbstractMappingContext {
 
     SparqlMappingContext() {
         mappingFactory = new SparqlMappingFactory()
-        syntaxStrategy = new GormMappingConfigurationStrategy(mappingFactory)
+//        syntaxStrategy = new GormMappingConfigurationStrategy(mappingFactory)
+        syntaxStrategy = new GormMappingConfigurationStrategy(mappingFactory);
     }
 
     /**
