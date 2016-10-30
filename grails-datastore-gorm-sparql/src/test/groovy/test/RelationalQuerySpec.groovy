@@ -26,25 +26,6 @@ class RelationalQuerySpec extends GormDatastoreSpec{
             s*.name == ["Java", "Groovy"]
     }
 
-    def "query associations by entities value"(){
-        given:
-        def pl = new Skill(name :"Programming Language").save()
-        def jvm = new Skill(name :"JVM Language", parent: pl).save()
-        def java = new Skill(name:"Java", parent:  jvm).save()
-        def groovy = new Skill(name:"Groovy", parent:  jvm).save()
-        def javascript = new Skill(name:"JavaScript", parent:  pl).save()
-        when:
-        def s = Skill.where {
-            parent {
-                name == "JVM Language"
-            }
-        }
-        then:
-        s.collect{
-          it.name
-        } == ["Java", "Groovy"]
-    }
-
     def "query associations by entities value deep where"(){
         given:
         def pl = new Skill(name :"Programming Language").save()
@@ -80,6 +61,25 @@ class RelationalQuerySpec extends GormDatastoreSpec{
                     eq("name", "Programming Language")
                 }
             }
+        }
+        then:
+        s.collect{
+            it.name
+        } == ["Java", "Groovy"]
+    }
+
+    def "query associations by entities value variable deep criteria"(){
+        given:
+        def pl = new Skill(name :"Programming Language").save()
+        def jvm = new Skill(name :"JVM Language", parent: pl).save()
+        def java = new Skill(name:"Java", parent:  jvm).save()
+        def groovy = new Skill(name:"Groovy", parent:  jvm).save()
+        def javascript = new Skill(name:"JavaScript", parent:  pl).save()
+        when:
+        def s = Skill.withCriteria {
+            find ("parent", {
+                eq("name", "Programming Language")
+            })
         }
         then:
         s.collect{

@@ -11,11 +11,7 @@ import org.grails.datastore.mapping.collection.PersistentSortedSet
 import org.grails.datastore.mapping.config.Property
 import org.grails.datastore.mapping.core.OptimisticLockingException
 import org.grails.datastore.mapping.core.SessionImplementor
-import org.grails.datastore.mapping.core.impl.PendingInsert
-import org.grails.datastore.mapping.core.impl.PendingInsertAdapter
-import org.grails.datastore.mapping.core.impl.PendingOperation
-import org.grails.datastore.mapping.core.impl.PendingUpdate
-import org.grails.datastore.mapping.core.impl.PendingUpdateAdapter
+import org.grails.datastore.mapping.core.impl.*
 import org.grails.datastore.mapping.dirty.checking.DirtyCheckable
 import org.grails.datastore.mapping.engine.EntityAccess
 import org.grails.datastore.mapping.engine.EntityPersister
@@ -23,27 +19,13 @@ import org.grails.datastore.mapping.engine.Persister
 import org.grails.datastore.mapping.model.PersistentEntity
 import org.grails.datastore.mapping.model.PersistentProperty
 import org.grails.datastore.mapping.model.PropertyMapping
-import org.grails.datastore.mapping.model.types.Association
-import org.grails.datastore.mapping.model.types.Basic
-import org.grails.datastore.mapping.model.types.Custom
-import org.grails.datastore.mapping.model.types.OneToMany
-import org.grails.datastore.mapping.model.types.Simple
-import org.grails.datastore.mapping.model.types.ToMany
-import org.grails.datastore.mapping.model.types.ToOne
+import org.grails.datastore.mapping.model.types.*
 import org.grails.datastore.mapping.proxy.ProxyFactory
 import org.grails.datastore.mapping.query.Query
-import org.openrdf.model.IRI
-import org.openrdf.model.Model
-import org.openrdf.model.Resource
-import org.openrdf.model.Statement
-import org.openrdf.model.Value
-import org.openrdf.model.ValueFactory
+import org.openrdf.model.*
 import org.openrdf.model.impl.LinkedHashModel
-import org.openrdf.model.impl.TreeModelFactory
 import org.openrdf.model.util.Models
-import org.openrdf.model.util.RDFCollections
 import org.openrdf.query.QueryLanguage
-import org.openrdf.query.QueryResult
 import org.openrdf.query.QueryResults
 import org.openrdf.repository.RepositoryResult
 import org.openrdf.repository.util.Connections
@@ -51,7 +33,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 
 import javax.persistence.FetchType
-import java.util.logging.Logger
 
 /**
  * Created by mwildt on 24.08.16.
@@ -346,6 +327,7 @@ class SparqlEntityPersister extends EntityPersister {
     }
 
     private void handleInverseToOne(ToOne inverseSide, Object associatedObject, Serializable identifier, obj, Persister associationPersister, boolean isInsert, Association prop, SparqlNativePersistentEntity entry) {
+        println ">> handleInverseToOne for property ${prop.getName()}"
         EntityAccess inverseAccess = createEntityAccess(inverseSide.getOwner(), associatedObject);
         def inversePropertyValue = inverseAccess.getProperty(inverseSide.getName());
         if (inversePropertyValue && inversePropertyValue.id == identifier) {
@@ -357,19 +339,28 @@ class SparqlEntityPersister extends EntityPersister {
             def versionPredicate = (associationPersister as SparqlEntityPersister).getDefaultPredicateByName('version')
 
             // TODO: Das hier sollte als Cascade-Operation erfolgen
+            /**
+             * Wenn es sich um eine update-Operation handelt, muss ggf die inverse Referenz wieder geändert werden, damit nicht zwei Objekte auf ein Objekt zeigen
+             */
             if (!isInsert) {
-                def persistentValue = ((DirtyCheckable) obj).getOriginalValue(prop.name);
-                if (null != persistentValue) {
-                    EntityAccess persistentInverseAccess = createEntityAccess(inverseSide.getOwner(), persistentValue);
-                    persistentInverseAccess.setProperty(inverseSide.getName(), null);
-                    super.incrementVersion(persistentInverseAccess)
-                    def incrementedVersion = super.getCurrentVersion(persistentInverseAccess)
-                    def persistentValueIRI = (associationPersister as SparqlEntityPersister).getIRIFromIdentifier(persistentInverseAccess.getIdentifier())
-                    entry.update(persistentValueIRI, versionPredicate, incrementedVersion);
+                def originalValue = ((DirtyCheckable) obj).getOriginalValue(prop.name);
+                if (null != originalValue) {
+                    EntityAccess originalInverseAccess = createEntityAccess(inverseSide.getOwner(), originalValue);
+                    def originalValueIRI = (associationPersister as SparqlEntityPersister).getIRIFromIdentifier( originalInverseAccess .getIdentifier())
+
+                    originalInverseAccess.setProperty(inverseSide.getName(), null);
+                    entry.remove(originalValueIRI, (associationPersister as SparqlEntityPersister).getPredicateForProperty(inverseSide))
+
+                    super.incrementVersion( originalInverseAccess )
+                    def origIncrementedVersion = super.getCurrentVersion( originalInverseAccess )
+                    println " originalValue incrementedVersion $origIncrementedVersion"
+
+                    entry.update(originalValueIRI, versionPredicate, origIncrementedVersion);
                 }
             }
             super.incrementVersion(inverseAccess)
             def incrementedVersion = super.getCurrentVersion(inverseAccess)
+            println " value incrementedVersion $incrementedVersion"
 
             entry.update(inverseIRI, inversePredicate, entry.iri);
             entry.update(inverseIRI, versionPredicate, incrementedVersion);
@@ -427,7 +418,11 @@ class SparqlEntityPersister extends EntityPersister {
                 String deleteList = createListDeleteStatement(action.subject, action.predicate)
                 datastore.repository.connection.prepareUpdate(QueryLanguage.SPARQL, deleteList).execute()
             }
+            println "remove ${action.subject} ${action.predicate} o?";
             datastore.repository.connection.remove(action.subject, action.predicate, null as Value)
+        }
+        nativeEntry.getModel().each {
+            println "insert ${it.subject} ${it.predicate} ${it.object}";
         }
         datastore.repository.connection.add(nativeEntry.getModel())
         return storeId;

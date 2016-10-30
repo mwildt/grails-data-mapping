@@ -24,4 +24,6 @@ class SparqlGormEnhancer extends GormEnhancer {
         new SparqlGormStaticApi<D>(cls, datastore as SparqlDatastore, getFinders(), transactionManager)
     }
 
+
+
 }
