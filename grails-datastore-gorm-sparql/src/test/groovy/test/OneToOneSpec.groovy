@@ -20,7 +20,7 @@ class OneToOneSpec extends GormDatastoreSpec{
         given:
             User u1 = new User(label: "User 1").save()
             User u2 = new User(label: "User 2").save()
-            Profile p1 = new Profile(label: "Priofil 1", user: u1).save()
+            Profile p1 = new Profile(label: "Profil 1", user: u1).save()
             session.flush()
             session.clear()
         when:

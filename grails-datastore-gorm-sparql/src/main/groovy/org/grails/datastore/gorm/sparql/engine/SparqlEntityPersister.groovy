@@ -120,6 +120,9 @@ class SparqlEntityPersister extends EntityPersister {
         IRI iri = getIRIFromIdentifier(identifier);
         def nativeEntry = new SparqlNativePersistentEntity(this);
         RepositoryResult<Statement> statements = datastore.repository.connection.getStatements(iri, null, null);
+        if(!statements.hasNext()){
+            return null;
+        }
         nativeEntry.model = QueryResults.asModel(statements);
         return createObjectFromNativeEntry(pe, identifier, nativeEntry);
     }
@@ -238,7 +241,7 @@ class SparqlEntityPersister extends EntityPersister {
             } else if(prop instanceof Basic) {
                 Object propValue = entityAccess.getProperty(prop.getName());
                 // TODO: Das hiermuss nochmal angepasst werden
-                entry.update(predicate, propValue)
+                entry.updateCollection(predicate, propValue)
             } else if(prop instanceof ToOne) {
                 ToOne toOne = prop as ToOne
                 Object associatedObject = entityAccess.getProperty(prop.getName());
@@ -362,7 +365,6 @@ class SparqlEntityPersister extends EntityPersister {
                     super.incrementVersion(persistentInverseAccess)
                     def incrementedVersion = super.getCurrentVersion(persistentInverseAccess)
                     def persistentValueIRI = (associationPersister as SparqlEntityPersister).getIRIFromIdentifier(persistentInverseAccess.getIdentifier())
-                    entry.deletes.add(persistentValueIRI, inversePredicate, entry.iri);
                     entry.update(persistentValueIRI, versionPredicate, incrementedVersion);
                 }
             }

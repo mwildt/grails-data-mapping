@@ -63,6 +63,9 @@ public class SparqlNativePersistentEntity {
 
     def getIdentifier(){
         Value value = getOne(persister.getIRI('identifier'));
+        if(value == null){
+            return null;
+        }
         if(IRI.isAssignableFrom(value.class)){
             return value
         } else {
@@ -165,7 +168,7 @@ public class SparqlNativePersistentEntity {
     }
 
     private addCollection(IRI iri, IRI predicate, Collection values){
-        if(!values.isEmpty()) {
+        if(values) {
             def head = persister.datastore.repository.valueFactory.createBNode()
             def list = RDFCollections.asRDF(values, head, new LinkedHashModel())
             model.addAll(list)
@@ -184,20 +187,6 @@ public class SparqlNativePersistentEntity {
 
     def removeCollection(IRI iri, IRI predicate){
         deletes << new LazyDeleteAction(subject: iri, predicate: predicate, collection: true);
-//        println "removeCollection with predicate ${predicate} for IRI ${iri}"
-//        def anchorQueryStatements = connection.getStatements(iri, predicate, null as Value);
-//        if(anchorQueryStatements.hasNext()){
-//            Statement anchor = anchorQueryStatements.next()
-//            println "anchor ${anchor}"
-//            deletes.addAll(anchor)
-//            Model rdfList = Connections.getRDFCollection(connection, anchor.getObject(), new LinkedHashModel())
-//            rdfList.each { Statement statement ->
-//                println "add remove statement ${statement}"
-//            }
-//            this.deletes.addAll(rdfList)
-//        } else {
-//            println "no statements"
-//        }
     }
 
     def update(IRI iri, IRI predicate, value){
@@ -206,8 +195,6 @@ public class SparqlNativePersistentEntity {
 
     def remove(IRI iri, IRI predicate){
         deletes << new LazyDeleteAction(subject: iri, predicate: predicate);
-//        def deleteModel = connection.getStatements(iri, predicate, null as Value)
-//        this.deletes.addAll(QueryResults.asModel(deleteModel))
     }
 
     def update(IRI iri, IRI predicate, Value value){
