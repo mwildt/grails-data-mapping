@@ -42,6 +42,7 @@ import org.openrdf.model.impl.LinkedHashModel
 import org.openrdf.model.impl.TreeModelFactory
 import org.openrdf.model.util.Models
 import org.openrdf.model.util.RDFCollections
+import org.openrdf.query.QueryLanguage
 import org.openrdf.query.QueryResult
 import org.openrdf.query.QueryResults
 import org.openrdf.repository.RepositoryResult
@@ -120,18 +121,6 @@ class SparqlEntityPersister extends EntityPersister {
         def nativeEntry = new SparqlNativePersistentEntity(this);
         RepositoryResult<Statement> statements = datastore.repository.connection.getStatements(iri, null, null);
         nativeEntry.model = QueryResults.asModel(statements);
-
-//        if(!statements.hasNext()){
-//            return null;
-//        }
-//
-//        def nativeEntry = new SparqlNativePersistentEntity(this);
-//        while (statements.hasNext()) {
-//            Statement st = statements.next();
-//            nativeEntry.add(st.predicate, st.object)
-//            SparqlNativePersistentEntity
-//
-//        }
         return createObjectFromNativeEntry(pe, identifier, nativeEntry);
     }
 
@@ -275,19 +264,20 @@ class SparqlEntityPersister extends EntityPersister {
                         Association inverseSide = toOne.getInverseSide()
                         if(inverseSide instanceof ToMany){ // ManyToMany
                             /**
-                             * TODO: Hier muss jetzt das listengeraffel eingebaut werden
                              * 1) Die eigene ID muss in das entsprechende Objket gesetzt werden. (Kann nur 1 Mal vorkommen weil die id unique sein sollte n:1)
                              * 2) Den alten Stand der List aus der DB-Laden
                              * 3) den alten Stand ins delete -Model aufnehmen
                              * 4) den neuen Stand der Liste in insert Model aufnehmen
                              * 5) die lock-version bei der Abhängigen Entität erhöhen.
                              *
-                             * TODO: Was ist eigen tlich wenn die Referenz gelöscht werden soll? Dann muss ja auch die Inverse Referenz entfernt werden.
+                             * TODO: Was ist eigentlich wenn die Referenz gelöscht werden soll? Dann muss ja auch die Inverse Referenz entfernt werden.
                              */
                             EntityAccess inverseAccess = createEntityAccess(inverseSide.getOwner(), associatedObject);
                             Collection inversePropertyValue = inverseAccess.getProperty(inverseSide.getName());
-
+                            println "handle bidirectional propery ${prop.getName()}: with items-size of ${inversePropertyValue.size()}"
                             if(!inversePropertyValue.findAll{it.id == identifier}){
+                                println "Add Object to inverse collection for property ${prop.getName()}: ${obj}"
+
                                 inversePropertyValue.add(obj);
 
                                 def inverseIRI = (associationPersister as SparqlEntityPersister).getIRIFromIdentifier(inverseAccess.getIdentifier())
@@ -331,7 +321,7 @@ class SparqlEntityPersister extends EntityPersister {
                             }
                             return associatedId
                         } // end collect
-                        entry.update(predicate, foreignIdentifiers);
+                        entry.updateCollection(predicate, foreignIdentifiers);
                     } else {
                         println "no persistent entity for property ${prop.getName()} of Type ${prop.getType()}"
                     }
@@ -426,28 +416,33 @@ class SparqlEntityPersister extends EntityPersister {
      */
     protected Serializable storeEntry(EntityAccess entityAccess, Serializable storeId, SparqlNativePersistentEntity nativeEntry) {
         IRI iri = getIRIFromIdentifier(storeId);
-        println " >> storeEntry $iri"
         (entityAccess.entity as SparqlEntity).setIRI(iri);
-//        Model model = new TreeModelFactory().createEmptyModel()
-//        nativeEntry.getAll().each { SparqlNativePersistentEntityProperty property ->
-//            println "add to Model $property.predicate, $property.value"
-//            if(property.value){
-//                model.add(iri, property.predicate, property.value)
-//            } else if(property.values){
-//                def head = valueFactory.createBNode()
-//                def list = RDFCollections.asRDF(property.values, head, new LinkedHashModel())
-//                model.addAll(list)
-//                model.add(iri, property.predicate, head)
-//            }
-//        }
-        println "delete Statements"
-        nativeEntry.getDeletes().each {println it}
-        datastore.repository.connection.remove(nativeEntry.getDeletes())
-        println  "insert Statements"
-        nativeEntry.getModel().each {println it}
+        nativeEntry.getDeletes().each {}
+        datastore.repository.connection.remove(nativeEntry.iri, null as IRI, null as Value);
+        nativeEntry.getDeletes().each { SparqlNativePersistentEntity.LazyDeleteAction action ->
+            if(action.collection) {
+                // Löschen von Listen-Strukturen
+                String deleteList = createListDeleteStatement(action.subject, action.predicate)
+                datastore.repository.connection.prepareUpdate(QueryLanguage.SPARQL, deleteList).execute()
+            }
+            datastore.repository.connection.remove(action.subject, action.predicate, null as Value)
+        }
         datastore.repository.connection.add(nativeEntry.getModel())
-
         return storeId;
+    }
+
+    /**
+     * erzeugt ein Sparql Statemente, dass eine Liste zu einem bestimmten Subjekt und Prädikat löscht.
+     */
+    String createListDeleteStatement(IRI subject, IRI predicate){
+        StringBuffer sb = new StringBuffer();
+        sb.append "DELETE  {"
+        sb.append " ?z rdf:first ?head ; rdf:rest ?tail ; rdf:type ?typ ."
+        sb.append " } WHERE {"
+        sb.append " <${subject}> <${predicate}> ?list ."
+        sb.append " ?list rdf:rest* ?z ."
+        sb.append " ?z rdf:first ?head ; rdf:rest ?tail ; rdf:type ?typ ."
+        sb.append " }"
     }
 
     @Override
@@ -464,7 +459,7 @@ class SparqlEntityPersister extends EntityPersister {
         def currentVersion = super.getCurrentVersion(entityAccess)
         nativeEntry.setProperty(getPredicateForProperty(persistentEntity.getVersion()), currentVersion)
 
-        datastore.repository.connection.remove(nativeEntry.deletes)
+        datastore.repository.connection.remove(nativeEntry.iri, null as IRI, null as Value);
         storeEntry(entityAccess, storeId, nativeEntry);
     }
 
@@ -475,10 +470,8 @@ class SparqlEntityPersister extends EntityPersister {
             if (currentVersion < dataStoreVersion) {
                 throw new OptimisticLockingException(persistentEntity, storeId)
             }
-
         }
     }
-
 
     public Object createObjectFromNativeEntry(PersistentEntity persistentEntity, Serializable nativeKey, SparqlNativePersistentEntity nativeEntry) {
         // persistentEntity = discriminatePersistentEntity(persistentEntity, nativeEntry);

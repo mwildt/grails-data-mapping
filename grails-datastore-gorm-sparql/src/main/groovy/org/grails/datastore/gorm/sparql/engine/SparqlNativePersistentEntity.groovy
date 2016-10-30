@@ -23,12 +23,23 @@ public class SparqlNativePersistentEntity {
 
     def modelFactory = new TreeModelFactory();
 
+    /**
+     * Weil der Zeitpunkt von Modelerstellung und FLush unterschiedliche sein kann,
+     * müssen die Delete-Alationen Lazy implementiert sein.
+     */
+    public static class LazyDeleteAction {
+        boolean collection = false;
+        IRI subject
+        IRI predicate
+    }
+
     def String family;
     def SparqlEntityPersister persister;
     def RepositoryConnection connection;
 
     def Model model = modelFactory.createEmptyModel()
-    def Model deletes = modelFactory.createEmptyModel()
+    def List<LazyDeleteAction> deletes
+
     def IRI iri
 
     def version;
@@ -47,8 +58,7 @@ public class SparqlNativePersistentEntity {
     def init(IRI iri){
         this.iri = iri;
         this.model = modelFactory.createEmptyModel()
-        RepositoryResult<Statement> statements = connection.getStatements(iri, null, null);
-        this.deletes = QueryResults.asModel(statements);
+        this.deletes = new LinkedList<LazyDeleteAction>() // QueryResults.asModel(statements);
     }
 
     def getIdentifier(){
@@ -59,10 +69,6 @@ public class SparqlNativePersistentEntity {
             return convert(value);
         }
     }
-
-//    def setProperty(IRI predicate, Collection values){
-//       this.model.add(list)
-//    }
 
     def setProperty(IRI predicate, Object value) {
         if(null == value){
@@ -154,30 +160,21 @@ public class SparqlNativePersistentEntity {
         return value.stringValue()
     }
 
-    def update(IRI predicate, Collection values){
-        // die alte Liste entfernen
-        def head = getOne(predicate);
-        if(head) {
-            Model oldList = Connections.getRDFCollection(connection, head, new LinkedHashModel());
-            deletes.addAll(oldList)
-        }
-        if(values){
-            head = persister.datastore.repository.valueFactory.createBNode()
-            def list = RDFCollections.asRDF(values, head, new LinkedHashModel())
-            model.addAll(list)
-            model.add(this.iri, predicate, head)
-        }
-    }
-
     private addCollection(IRI predicate, Collection values){
         addCollection(this.iri, predicate, values);
     }
 
     private addCollection(IRI iri, IRI predicate, Collection values){
-        def head = persister.datastore.repository.valueFactory.createBNode()
-        def list = RDFCollections.asRDF(values, head, new LinkedHashModel())
-        model.addAll(list)
-        model.add(iri, predicate, head)
+        if(!values.isEmpty()) {
+            def head = persister.datastore.repository.valueFactory.createBNode()
+            def list = RDFCollections.asRDF(values, head, new LinkedHashModel())
+            model.addAll(list)
+            model.add(iri, predicate, head)
+        }
+    }
+
+    def updateCollection(IRI predicate, Collection values){
+        updateCollection(this.iri, predicate, values);
     }
 
     def updateCollection(IRI iri, IRI predicate, Collection values){
@@ -186,23 +183,36 @@ public class SparqlNativePersistentEntity {
     }
 
     def removeCollection(IRI iri, IRI predicate){
-        def anchorQueryStatements = connection.getStatements(iri, predicate, null as Value);
-        if(anchorQueryStatements.hasNext()){
-            Statement anchor = anchorQueryStatements.next()
-            deletes.addAll(anchor)
-            Model rdfList = Connections.getRDFCollection(connection, anchor.getObject(), new LinkedHashModel())
-            this.deletes.addAll(rdfList)
-        }
+        deletes << new LazyDeleteAction(subject: iri, predicate: predicate, collection: true);
+//        println "removeCollection with predicate ${predicate} for IRI ${iri}"
+//        def anchorQueryStatements = connection.getStatements(iri, predicate, null as Value);
+//        if(anchorQueryStatements.hasNext()){
+//            Statement anchor = anchorQueryStatements.next()
+//            println "anchor ${anchor}"
+//            deletes.addAll(anchor)
+//            Model rdfList = Connections.getRDFCollection(connection, anchor.getObject(), new LinkedHashModel())
+//            rdfList.each { Statement statement ->
+//                println "add remove statement ${statement}"
+//            }
+//            this.deletes.addAll(rdfList)
+//        } else {
+//            println "no statements"
+//        }
     }
 
     def update(IRI iri, IRI predicate, value){
         update(iri, predicate, toValue(value))
     }
-    
+
+    def remove(IRI iri, IRI predicate){
+        deletes << new LazyDeleteAction(subject: iri, predicate: predicate);
+//        def deleteModel = connection.getStatements(iri, predicate, null as Value)
+//        this.deletes.addAll(QueryResults.asModel(deleteModel))
+    }
+
     def update(IRI iri, IRI predicate, Value value){
+        this.remove(iri, predicate)
         this.model.add(iri, predicate, value);
-        def deleteModel = connection.getStatements(iri, predicate, null as Value)
-        this.deletes.addAll(QueryResults.asModel(deleteModel))
     }
 
     private void addAll(IRI predicate, List<Value> values){

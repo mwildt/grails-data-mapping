@@ -107,7 +107,8 @@ class OneToManySpec extends GormDatastoreSpec {
 
         given:
             Person person = new Person(firstName: "Fred", lastName: "Flinstone").save()
-            Pet dino = new Pet(name: "Dino", type: new PetType(name: "Dinosaur"), owner:person).save()
+            Pet dino = new Pet(name: "Dino", type: new PetType(name: "Dinosaur"), owner:person)
+            dino.save()
             Pet trex = new Pet(name: "Trex", type: new PetType(name: "Dinosaur"), owner:person).save()
 
         expect:
