@@ -1,11 +1,8 @@
-package test
+package gorm.sparql.test
 
 import grails.gorm.tests.GormDatastoreSpec
-import model.Categorized
-import model.Category
-import model.ListModel
-import model.Skill
-import spock.lang.Unroll
+import gorm.sparql.model.Categorized
+import gorm.sparql.model.Category
 
 /**
  * Created by mwildt on 28.06.16.

@@ -1,9 +1,7 @@
-package test
+package gorm.sparql.test
 
 import grails.gorm.tests.GormDatastoreSpec
-import model.ListModel
-import model.Skill
-import org.grails.datastore.gorm.finders.MethodExpression
+import gorm.sparql.model.Skill
 
 /**
  * Created by mwildt on 30.06.16.

@@ -1,7 +1,7 @@
-package test
+package gorm.sparql.test
 
 import grails.gorm.tests.GormDatastoreSpec
-import model.WithListAttribute
+import gorm.sparql.model.WithListAttribute
 
 /**
  * Created by mwildt on 30.06.16.

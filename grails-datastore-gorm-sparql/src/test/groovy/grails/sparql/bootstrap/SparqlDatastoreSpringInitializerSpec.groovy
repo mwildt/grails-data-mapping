@@ -1,6 +1,6 @@
 package grails.sparql.bootstrap
 
-import model.Skill
+import gorm.sparql.model.Skill
 import spock.lang.Specification
 
 /**

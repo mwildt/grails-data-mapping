@@ -1,4 +1,4 @@
-package test
+package gorm.sparql.test
 
 import grails.persistence.Entity
 

@@ -1,7 +1,7 @@
-package test
+package gorm.sparql.test
 
-import model.ListModel
-import model.Skill
+import gorm.sparql.model.ListModel
+import gorm.sparql.model.Skill
 import org.openrdf.sail.memory.model.MemIRI
 import spock.lang.Unroll
 

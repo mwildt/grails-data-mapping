@@ -1,11 +1,8 @@
-package model
+package gorm.sparql.model
 
 import grails.persistence.Entity
 import org.openrdf.model.IRI
 import org.openrdf.model.impl.SimpleIRI
-import org.openrdf.model.impl.SimpleValueFactory
-import org.openrdf.model.vocabulary.RDF
-import org.openrdf.model.vocabulary.SKOS
 
 /**
  * Created by mwildt on 28.06.16.

@@ -1,11 +1,11 @@
-package test
+package gorm.sparql.test
 
 import grails.gorm.tests.GormDatastoreSpec
-import model.NorCandidate
-import model.NorUser
-import model.Person
-import model.Profile
-import model.User
+import gorm.sparql.model.NorCandidate
+import gorm.sparql.model.NorUser
+import gorm.sparql.model.Person
+import gorm.sparql.model.Profile
+import gorm.sparql.model.User
 
 /**
  * Created by mwildt on 30.06.16.

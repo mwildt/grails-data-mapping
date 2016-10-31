@@ -1,11 +1,7 @@
-package test
+package gorm.sparql.test
 
-import grails.gorm.tests.GormDatastoreSpec
-import model.ListModel
-import model.Skill
 import org.grails.datastore.mapping.core.DatastoreUtils
 import org.grails.datastore.mapping.core.Session
-import org.openrdf.model.impl.SimpleValueFactory
 import spock.lang.Shared
 import spock.lang.Specification
 

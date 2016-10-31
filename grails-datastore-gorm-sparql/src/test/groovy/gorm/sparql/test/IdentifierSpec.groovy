@@ -1,6 +1,6 @@
-package test
+package gorm.sparql.test
 
-import model.LongIdEntity
+import gorm.sparql.model.LongIdEntity
 
 /**
  * Created by mwildt on 07.07.16.

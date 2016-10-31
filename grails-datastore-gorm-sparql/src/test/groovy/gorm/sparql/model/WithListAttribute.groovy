@@ -1,4 +1,4 @@
-package model
+package gorm.sparql.model
 
 import grails.gorm.annotation.Entity
 import org.openrdf.model.vocabulary.FOAF

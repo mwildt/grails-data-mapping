@@ -1,4 +1,4 @@
-package model
+package gorm.sparql.model
 
 import grails.persistence.Entity
 
