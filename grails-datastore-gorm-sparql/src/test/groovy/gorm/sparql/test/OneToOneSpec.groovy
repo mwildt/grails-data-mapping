@@ -6,10 +6,12 @@ import gorm.sparql.model.NorUser
 import gorm.sparql.model.Person
 import gorm.sparql.model.Profile
 import gorm.sparql.model.User
+import spock.lang.Stepwise
 
 /**
  * Created by mwildt on 30.06.16.
  */
+@Stepwise
 class OneToOneSpec extends GormDatastoreSpec{
 
     List getDomainClasses() {
