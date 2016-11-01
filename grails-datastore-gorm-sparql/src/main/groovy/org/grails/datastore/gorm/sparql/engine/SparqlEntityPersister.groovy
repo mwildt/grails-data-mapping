@@ -39,7 +39,7 @@ import javax.persistence.FetchType
  */
 class SparqlEntityPersister extends EntityPersister {
 
-    final static String DEFAULT_PREFIX = "http://norris.flavia-it.de/"
+    final static String DEFAULT_PREFIX = "http://sparql.de/"
     final log = LoggerFactory.getLogger(SparqlEntityPersister)
     final static Closure NOT_NULL = { it -> null != it}
 
@@ -247,46 +247,14 @@ class SparqlEntityPersister extends EntityPersister {
                         // CascadingOperation
                         Association inverseSide = toOne.getInverseSide()
                         if(inverseSide instanceof ToMany){ // ManyToMany
-                            /**
-                             * 1) Die eigene ID muss in das entsprechende Objket gesetzt werden. (Kann nur 1 Mal vorkommen weil die id unique sein sollte n:1)
-                             * 2) Den alten Stand der List aus der DB-Laden
-                             * 3) den alten Stand ins delete -Model aufnehmen
-                             * 4) den neuen Stand der Liste in insert Model aufnehmen
-                             * 5) die lock-version bei der Abhängigen Entität erhöhen.
-                             *
-                             * TODO: Was ist eigentlich wenn die Referenz gelöscht werden soll? Dann muss ja auch die Inverse Referenz entfernt werden.
-                             */
-                            EntityAccess inverseAccess = createEntityAccess(inverseSide.getOwner(), associatedObject);
-                            Collection inversePropertyValue = inverseAccess.getProperty(inverseSide.getName());
-                            println "handle bidirectional propery ${prop.getName()}: with items-size of ${inversePropertyValue.size()}"
-                            if(!inversePropertyValue.findAll{it.id == identifier}){
-                                println "Add Object to inverse collection for property ${prop.getName()}: ${obj}"
-
-                                inversePropertyValue.add(obj);
-
-                                def inverseIRI = (associationPersister as SparqlEntityPersister).getIRIFromIdentifier(inverseAccess.getIdentifier())
-                                def inversePredicate = (associationPersister as SparqlEntityPersister).getPredicateForProperty(inverseSide);
-                                def versionPredicate = (associationPersister as SparqlEntityPersister).getDefaultPredicateByName('version')
-                                // values muss eine collection von Values sein
-                                Collection values = inversePropertyValue.collect {
-                                    Serializable objId = this.getObjectIdentifier(it);
-                                    return this.getIRIFromIdentifier(objId);
-                                };
-                                entry.updateCollection(inverseIRI, inversePredicate, values);
-                                super.incrementVersion(inverseAccess)
-                                def incrementedVersion = super.getCurrentVersion(inverseAccess)
-                                entry.update(inverseIRI, versionPredicate, incrementedVersion);
-                            }
-
-
-                            println "TODO: ManyToOne bidirectional for property ${prop.getName()} of Type ${prop.getType()}"
+                            handleInverseToMany(inverseSide, associatedObject, prop, identifier, obj, associationPersister, entry)
                         } else if(inverseSide instanceof ToOne) { // One to One
                             handleInverseToOne(inverseSide, associatedObject, identifier, obj, associationPersister, isInsert, toOne, entry)
                         }
                     }
                 }
-            } else if(prop instanceof OneToMany) {
-                final ToMany toMany = prop as OneToMany
+            } else if(prop instanceof ToMany) {
+                final ToMany toMany = prop as ToMany
                 final Object propValue = entityAccess.getProperty(toMany.getName());
                 if (propValue instanceof Collection) {
                     Collection associatedObjects = (Collection) propValue;
@@ -301,6 +269,8 @@ class SparqlEntityPersister extends EntityPersister {
                                 if (inverseSide instanceof ToOne) {
                                     // We have a oneToMany -> Inverse -> manyToOne relation
                                     handleInverseToOne(inverseSide, associatedObject, identifier, obj, associationPersister, isInsert, inverseSide as ToOne, entry)
+                                } else  if (inverseSide instanceof ToMany) {
+                                    handleInverseToMany(inverseSide, associatedObject, prop, identifier, obj, associationPersister, entry)
                                 }
                             }
                             return associatedId
@@ -324,6 +294,49 @@ class SparqlEntityPersister extends EntityPersister {
         }
 
         return identifier
+    }
+
+    private void handleInverseToMany(ToMany inverseToMany, associatedObject, Association prop, Serializable identifier, obj, Persister associationPersister, SparqlNativePersistentEntity entry) {
+        /**
+         * 1) Die eigene ID muss in das entsprechende Objket gesetzt werden. (Kann nur 1 Mal vorkommen weil die id unique sein sollte n:1)
+         * 2) Den alten Stand der List aus der DB-Laden
+         * 3) den alten Stand ins delete -Model aufnehmen
+         * 4) den neuen Stand der Liste in insert Model aufnehmen
+         * 5) die lock-version bei der Abhängigen Entität erhöhen.
+         *
+         * TODO: Was ist eigentlich wenn die Referenz gelöscht werden soll? Dann muss ja auch die Inverse Referenz entfernt werden.
+         */
+        EntityAccess inverseAccess = createEntityAccess(inverseToMany.getOwner(), associatedObject);
+        Collection inversePropertyValue = inverseAccess.getProperty(inverseToMany.getName());
+        // todo: collection needs to be created if null
+        if(inversePropertyValue == null){
+            inversePropertyValue = inverseToMany.getType().cast([])
+            inverseAccess.setProperty(inverseToMany.getName(), inversePropertyValue);
+        }
+        println "handle bidirectional propery ${prop.getName()}: with items-size of ${inversePropertyValue.size()}"
+        if (!inversePropertyValue.findAll { it.id == identifier }) {
+            println "Add Object to inverse collection for property ${prop.getName()}: ${obj}"
+
+            inversePropertyValue.add(obj);
+
+            def inverseIRI = (associationPersister as SparqlEntityPersister).getIRIFromIdentifier(inverseAccess.getIdentifier())
+            def inversePredicate = (associationPersister as SparqlEntityPersister).getPredicateForProperty(inverseToMany);
+            def versionPredicate = (associationPersister as SparqlEntityPersister).getDefaultPredicateByName('version')
+            // values muss eine collection von Values sein
+            Collection values = inversePropertyValue.collect {
+                Serializable objId = this.getObjectIdentifier(it);
+                return this.getIRIFromIdentifier(objId);
+            };
+            entry.updateCollection(inverseIRI, inversePredicate, values);
+            super.incrementVersion(inverseAccess)
+            def incrementedVersion = super.getCurrentVersion(inverseAccess)
+            entry.update(inverseIRI, versionPredicate, incrementedVersion);
+        } else {
+            println "property allready set"
+        }
+
+
+        println "TODO: ManyToOne bidirectional for property ${prop.getName()} of Type ${prop.getType()}"
     }
 
     private void handleInverseToOne(ToOne inverseSide, Object associatedObject, Serializable identifier, obj, Persister associationPersister, boolean isInsert, Association prop, SparqlNativePersistentEntity entry) {

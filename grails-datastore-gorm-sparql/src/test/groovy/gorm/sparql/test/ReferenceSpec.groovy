@@ -35,9 +35,9 @@ class ReferenceSpec extends GormDatastoreSpec {
             Categorized r = Categorized.get(item.id)
 
         then:
-            category1.id.toString() == "http://norris.flavia-it.de/gorm.sparql.model.Category/1"
-            category2.id.toString() == "http://norris.flavia-it.de/gorm.sparql.model.Category/2"
-            r.id.toString() == "http://norris.flavia-it.de/gorm.sparql.model.Categorized/1"
+            category1.id.toString() == "http://sparql.de/gorm.sparql.model.Category/1"
+            category2.id.toString() == "http://sparql.de/gorm.sparql.model.Category/2"
+            r.id.toString() == "http://sparql.de/gorm.sparql.model.Categorized/1"
             r.name == "Item 1"
             r.categories.size() == 2
             r.mainCategory
