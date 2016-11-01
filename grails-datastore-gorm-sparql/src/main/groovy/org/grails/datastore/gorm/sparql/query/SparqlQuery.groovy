@@ -44,19 +44,30 @@ class SparqlQuery extends Query implements QueryArgumentsAware {
 
     public QueryTree.QueryTreeNode get(PersistentEntity entity, AssociationQuery associationQuery, subject = "?s"){
         PersistentProperty property = entity.getPropertyByName(associationQuery.association.name)
+        IRI predicate = persister.getPredicateForProperty(property)
+        String object = uniqueLabel(associationQuery.association.name)
+        new QueryTree.TripleOnlyQueryTreeRootNode(
+            inner: get(associationQuery.association.associatedEntity, associationQuery.criteria, object),
+            triples: [
+                new Triples.Triple(subject, predicate, object),
+            ]
+        )
+    }
+
+    public QueryTree.QueryTreeNode get(PersistentEntity entity, SparqlCriteriaBuilder.SparqlAssociationQuery associationQuery, subject = "?s"){
+        PersistentProperty property = entity.getPropertyByName(associationQuery.association.name)
 
         IRI predicate = persister.getPredicateForProperty(property)
-//        String head = uniqueLabel("list")
         String object = uniqueLabel(associationQuery.association.name)
         new QueryTree.TripleOnlyQueryTreeRootNode(
                 inner: get(associationQuery.association.associatedEntity, associationQuery.criteria, object),
                 triples: [
-                    new Triples.Triple(subject, predicate, object),
-//                    new Triples.Triple().withSubject(head).withPredicate("rdf:list*/rdf:first").withObject(object)
+                    new Triples.Triple().withSubject(subject)
+                            .withPredicate("<${predicate}>${associationQuery.additionalOperator}")
+                            .withObject(object)
                 ]
         )
     }
-
 
 
     public QueryTree.QueryTreeNode get(PersistentEntity entity, Query.Criterion criterion, subject = "?s"){
@@ -115,12 +126,26 @@ class SparqlQuery extends Query implements QueryArgumentsAware {
         );
     }
 
+    def printQuery(Query.Criterion criterion, int lvl = 0){
+        String tab = "   " * lvl;
+        println "$tab -- ${criterion.getClass().getSimpleName()}"
+        if(criterion instanceof Query.Junction){
+            (criterion as Query.Junction).criteria.each{ it ->
+                printQuery it, (lvl + 1)
+            }
+        } else if(criterion instanceof AssociationQuery){
+            (criterion as AssociationQuery).criteria.each{ it ->
+                printQuery it, (lvl + 1)
+            }
+        }
+    }
+
     @Override
     protected List executeQuery(PersistentEntity entity, Query.Junction criteria) {
-
+        println " >> executeQuery on entity ${entity.getName()}"
+        printQuery(criteria);
         RDFEntity mappedForm = persister
                 .getMappingContext().getMappingFactory().createMappedForm(entity);
-
         QueryTree.QueryTreeNode treeRoot = new QueryTree.QueryTreeRootNode(
             triples: [
                 new Triples.Triple(),
