@@ -135,7 +135,7 @@ class QueryTree {
 
         @Override
         List<Triples.Triple> getTriples() {
-            return [triple];
+            return triple ? [triple] : [];
         }
 
         @Override

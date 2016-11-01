@@ -47,4 +47,21 @@ class OneToManyTest extends GormDatastoreSpec {
         found*.name.sort() == ["spring", "grails"].sort()
     }
 
+    def "find all skills implicated by grails" (){
+        given:
+        Skill java = new Skill(name: "java").save(flush:true)
+        Skill groovy = new Skill(name: "groovy").save(flush:true)
+        Skill spring = new Skill(name: "spring", implicits: [java]).save(flush:true)
+        Skill grails = new Skill(name: "grails", implicits: [groovy, spring]).save(flush:true)
+        session.clear();
+        when:
+        def found = Skill.withCriteria {
+            find "-implicits+", {
+                eq("name", "grails");
+            }
+        }
+        then:
+        found*.name.sort() == ["spring", "groovy", "java"].sort()
+    }
+
 }

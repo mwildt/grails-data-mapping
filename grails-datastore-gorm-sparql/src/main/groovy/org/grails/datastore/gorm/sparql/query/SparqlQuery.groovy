@@ -64,11 +64,11 @@ class SparqlQuery extends Query implements QueryArgumentsAware {
             predicate = "<${predicateIRI}>${associationQuery.additionalOperator?:''}"
             String object = uniqueLabel(associationQuery.association.name)
             new QueryTree.TripleOnlyQueryTreeRootNode(
-                    inner: get(associationQuery.association.associatedEntity, associationQuery.criteria, object),
+                    inner: get(associationQuery.association.associatedEntity, associationQuery.criteria, associationQuery.inverse ? subject : object),
                     triples: [
-                            new Triples.Triple().withSubject(subject)
+                            new Triples.Triple().withSubject(associationQuery.inverse ? object : subject)
                                     .withPredicate(predicate)
-                                    .withObject(object)
+                                    .withObject(associationQuery.inverse ? subject : object)
                     ]
             )
         } else if(ToMany.isInstance(property)){
@@ -80,9 +80,9 @@ class SparqlQuery extends Query implements QueryArgumentsAware {
             new QueryTree.TripleOnlyQueryTreeRootNode(
                     inner: get(associationQuery.association.associatedEntity, associationQuery.criteria, object),
                     triples: [
-                            new Triples.Triple().withSubject(subject)
+                            new Triples.Triple().withSubject(associationQuery.inverse ? object : subject)
                                     .withPredicate(predicate)
-                                    .withObject(object)
+                                    .withObject(associationQuery.inverse ? subject : object)
                     ]
             )
         }
@@ -101,6 +101,14 @@ class SparqlQuery extends Query implements QueryArgumentsAware {
         new QueryTree.SimpleExpressionQueryTreeNode(
             expression: new Triples.SparqlSimpleFilter("$label = ${Triples.printValue(object)}"),
             triple: new Triples.Triple(subject, predicate, label)
+        );
+    }
+
+    public QueryTree.QueryTreeNode get(PersistentEntity entity, SparqlCriteriaBuilder.IsQuery isQuery, subject = "?s"){
+        IRI value = persister.getObjectIdentifier(isQuery.entity)
+//        Value object = persister.getLiteral(equals.value)
+        new QueryTree.SimpleExpressionQueryTreeNode(
+                expression: new Triples.SparqlSimpleFilter("$subject = ${Triples.printValue(value)}"),
         );
     }
 

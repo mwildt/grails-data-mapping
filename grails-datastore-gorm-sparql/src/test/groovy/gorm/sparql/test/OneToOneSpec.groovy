@@ -46,19 +46,6 @@ class OneToOneSpec extends GormDatastoreSpec{
             u2.profile == p1
     }
 
-//    def "test mapped by"(){
-//        given:
-//            Profile p1 = new Profile().save()
-//            User u1 = new User(profile: p1).save();
-//            session.flush()
-//            session.clear()
-//        when:
-//            def profile = Profile.get(p1.getId());
-//        then:
-//            profile.user == u1
-//            profile.owner == null
-//    }
-
     def "mapped by none "(){
         given:
             Person p1 = new Person().save()

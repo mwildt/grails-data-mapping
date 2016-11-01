@@ -1,5 +1,6 @@
 package gorm.sparql.test
 
+import gorm.sparql.model.Skill
 import grails.gorm.tests.GormDatastoreSpec
 import gorm.sparql.model.Categorized
 import gorm.sparql.model.Category
@@ -10,7 +11,7 @@ import gorm.sparql.model.Category
 class ReferenceSpec extends GormDatastoreSpec {
 
     List getDomainClasses() {
-        [Category, Categorized]
+        [Category, Categorized, Skill]
     }
 
     def "a relation is saved an loaded afterwards"(){
@@ -42,6 +43,24 @@ class ReferenceSpec extends GormDatastoreSpec {
             r.mainCategory
             r.mainCategory.name == "CAT 1"
             item.mainCategoryId == category1.id;
+    }
+
+    def "find() can be used with id()" (){
+        given:
+        Skill java = new Skill(name: "java").save(flush:true)
+        Skill groovy = new Skill(name: "groovy").save(flush:true).save(flush:true)
+        Skill gradle = new Skill(name: "gradle", implicits: [groovy]).save(flush:true)
+        Skill spring = new Skill(name: "spring", implicits: [java]).save(flush:true)
+        Skill grails = new Skill(name: "grails", implicits: [groovy, spring]).save(flush:true)
+        session.clear();
+        when:
+        def found = Skill.withCriteria {
+            find "implicits+", {
+                id(java)
+            }
+        }
+        then:
+        found*.name.sort() == ["grails", "spring"].sort()
     }
 
 }

@@ -1,6 +1,7 @@
 package org.grails.datastore.gorm.sparql.query
 
 import grails.gorm.CriteriaBuilder
+import org.grails.datastore.gorm.sparql.entity.SparqlEntity
 import org.grails.datastore.mapping.core.Session
 import org.grails.datastore.mapping.model.PersistentEntity
 import org.grails.datastore.mapping.model.PersistentProperty
@@ -27,6 +28,7 @@ class SparqlCriteriaBuilder extends CriteriaBuilderAdapter {
 
     public static class SparqlAssociationQuery extends AssociationQuery {
         String additionalOperator = null;
+        boolean inverse = false;
 
         protected SparqlAssociationQuery(Session session, PersistentEntity entity, Association association) {
             super(session, entity, association);
@@ -34,9 +36,22 @@ class SparqlCriteriaBuilder extends CriteriaBuilderAdapter {
 
     }
 
-    public createQuery(propertyPath){
+    public static class IsQuery implements Query.Criterion {
+        Object entity;
+    }
+
+    public Criteria id(Object entity) {
+        addToCriteria(new IsQuery(entity: entity))
+        return this
+    }
+
+    public createQuery(String propertyPath){
         String associationName;
         String additional;
+        boolean inverse = propertyPath.startsWith("-");
+        if(inverse){
+            propertyPath = propertyPath.substring(1);
+        }
         if(propertyPath.endsWith('+')){
             associationName = propertyPath.substring(0, propertyPath.length() - 1);
             additional = '+';
@@ -58,6 +73,7 @@ class SparqlCriteriaBuilder extends CriteriaBuilderAdapter {
 
         SparqlAssociationQuery associationQuery = new SparqlAssociationQuery(query.session, associatedEntity, association)
         associationQuery.additionalOperator = additional;
+        associationQuery.inverse = inverse;
         return associationQuery;
     }
 
