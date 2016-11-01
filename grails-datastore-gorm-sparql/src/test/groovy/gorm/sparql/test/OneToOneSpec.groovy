@@ -62,17 +62,17 @@ class OneToOneSpec extends GormDatastoreSpec{
             l2.supervisor == null;
     }
 
-    def "unidirectional test"(){
-        given:
-            NorCandidate c = new NorCandidate(name: "Malte Wildt").save()
-            NorUser mwildt = new NorUser(username: "mwildt", profile: c).save();
-            session.flush()
-            session.clear()
-        when:
-            NorCandidate cl = NorCandidate.get(c.id);
-        then:
-            cl.getLastEditedBy() == null;
-            cl.getOwner() == null;
-    }
+//    def "unidirectional test"(){
+//        given:
+//            NorCandidate c = new NorCandidate(name: "Malte Wildt").save()
+//            NorUser mwildt = new NorUser(username: "mwildt", profile: c).save();
+//            session.flush()
+//            session.clear()
+//        when:
+//            NorCandidate cl = NorCandidate.get(c.id);
+//        then:
+//            cl.getLastEditedBy() == null;
+//            cl.getOwner() == null;
+//    }
 }
 
