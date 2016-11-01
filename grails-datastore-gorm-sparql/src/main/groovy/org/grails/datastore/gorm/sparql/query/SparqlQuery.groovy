@@ -6,6 +6,8 @@ import org.grails.datastore.gorm.sparql.mapping.config.RDFEntity
 import org.grails.datastore.mapping.core.Session
 import org.grails.datastore.mapping.model.PersistentEntity
 import org.grails.datastore.mapping.model.PersistentProperty
+import org.grails.datastore.mapping.model.types.ToMany
+import org.grails.datastore.mapping.model.types.ToOne
 import org.grails.datastore.mapping.query.AssociationQuery
 import org.grails.datastore.mapping.query.Query
 import org.grails.datastore.mapping.query.api.QueryArgumentsAware
@@ -56,17 +58,34 @@ class SparqlQuery extends Query implements QueryArgumentsAware {
 
     public QueryTree.QueryTreeNode get(PersistentEntity entity, SparqlCriteriaBuilder.SparqlAssociationQuery associationQuery, subject = "?s"){
         PersistentProperty property = entity.getPropertyByName(associationQuery.association.name)
-
-        IRI predicate = persister.getPredicateForProperty(property)
-        String object = uniqueLabel(associationQuery.association.name)
-        new QueryTree.TripleOnlyQueryTreeRootNode(
-                inner: get(associationQuery.association.associatedEntity, associationQuery.criteria, object),
-                triples: [
-                    new Triples.Triple().withSubject(subject)
-                            .withPredicate("<${predicate}>${associationQuery.additionalOperator}")
-                            .withObject(object)
-                ]
-        )
+        String predicate;
+        IRI predicateIRI = persister.getPredicateForProperty(property)
+        if(ToOne.isInstance(property)){
+            predicate = "<${predicateIRI}>${associationQuery.additionalOperator?:''}"
+            String object = uniqueLabel(associationQuery.association.name)
+            new QueryTree.TripleOnlyQueryTreeRootNode(
+                    inner: get(associationQuery.association.associatedEntity, associationQuery.criteria, object),
+                    triples: [
+                            new Triples.Triple().withSubject(subject)
+                                    .withPredicate(predicate)
+                                    .withObject(object)
+                    ]
+            )
+        } else if(ToMany.isInstance(property)){
+            predicate = "<${predicateIRI}>/rdf:rest*/rdf:first"
+            if(associationQuery.additionalOperator){
+                predicate = "($predicate)${associationQuery.additionalOperator}"
+            }
+            String object = uniqueLabel(associationQuery.association.name)
+            new QueryTree.TripleOnlyQueryTreeRootNode(
+                    inner: get(associationQuery.association.associatedEntity, associationQuery.criteria, object),
+                    triples: [
+                            new Triples.Triple().withSubject(subject)
+                                    .withPredicate(predicate)
+                                    .withObject(object)
+                    ]
+            )
+        }
     }
 
 
@@ -188,8 +207,5 @@ class SparqlQuery extends Query implements QueryArgumentsAware {
     void setArguments(Map arguments) {
 
     }
-
-
-
 
  }
