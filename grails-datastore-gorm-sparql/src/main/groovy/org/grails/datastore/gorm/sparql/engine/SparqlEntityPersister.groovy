@@ -308,13 +308,17 @@ class SparqlEntityPersister extends EntityPersister {
          */
         EntityAccess inverseAccess = createEntityAccess(inverseToMany.getOwner(), associatedObject);
         Collection inversePropertyValue = inverseAccess.getProperty(inverseToMany.getName());
-        // todo: collection needs to be created if null
         if(inversePropertyValue == null){
             inversePropertyValue = inverseToMany.getType().cast([])
             inverseAccess.setProperty(inverseToMany.getName(), inversePropertyValue);
         }
         println "handle bidirectional propery ${prop.getName()}: with items-size of ${inversePropertyValue.size()}"
-        if (!inversePropertyValue.findAll { it.id == identifier }) {
+        /**
+         *TODO: Diese Bedingund ist fachlich nihct ganz in ordung. Es kann sein, dass die Beziehung in der inversen Seite schon gesetzt ist, aber noch nicht gespeichert wurde
+         * Dies ist beispiels weise bei Nutzung von addToCollection an der Entät der Fall
+         */
+
+        if (!inversePropertyValue.findAll { it.id == identifier })
             println "Add Object to inverse collection for property ${prop.getName()}: ${obj}"
 
             inversePropertyValue.add(obj);
